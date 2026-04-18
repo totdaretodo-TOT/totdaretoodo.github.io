@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#27ae60">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>一步步 - 门店工作助手</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="assets/icon-512.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- 隐私弹窗模板 -->
+  <template id="privacy-popup-template">
+    <div class="privacy-popup-overlay">
+      <div class="privacy-popup-content">
+        <h2>隐私政策提示</h2>
+        <p>请您仔细阅读并理解以下隐私政策：</p>
+        <div class="privacy-text">
+          <p><strong>一步步</strong>是一款帮助心智障碍群体完成门店工作的辅助工具。</p>
+          <p><strong>数据存储：</strong>应用所有数据均保存在您本地设备上，不会上传至任何服务器。</p>
+          <p><strong>图片存储：</strong>您上传的参考图片仅存储在本地浏览器数据库中。</p>
+          <p><strong>语音功能：</strong>应用使用设备语音功能进行朗读。</p>
+          <p><strong>联系人功能：</strong>拨打电话功能调用系统拨号界面。</p>
+          <p>如您同意上述说明，请点击下方"同意"按钮继续使用。</p>
+        </div>
+        <div class="privacy-buttons">
+          <button class="btn-agree">同意</button>
+          <button class="btn-disagree">不同意</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <div id="privacy-popup"></div>
+
+  <svg style="display: none;">
+    <symbol id="icon-uniform" viewBox="0 0 100 100">
+      <rect x="25" y="20" width="50" height="60" rx="5" fill="#4A90D9"/>
+      <circle cx="50" cy="38" r="12" fill="#FFF"/>
+      <path d="M30 55 Q50 75 70 55" stroke="#FFF" stroke-width="3" fill="none"/>
+    </symbol>
+    <symbol id="icon-light" viewBox="0 0 100 100">
+      <circle cx="50" cy="45" r="18" fill="#FFD93D"/>
+      <line x1="50" y1="63" x2="50" y2="85" stroke="#FFD93D" stroke-width="6" stroke-linecap="round"/>
+      <line x1="35" y1="78" x2="65" y2="78" stroke="#FFD93D" stroke-width="3" stroke-linecap="round"/>
+      <g stroke="#FFD93D" stroke-width="3" stroke-linecap="round">
+        <line x1="50" y1="15" x2="50" y2="22"/>
+        <line x1="80" y1="28" x2="74" y2="34"/>
+        <line x1="85" y1="48" x2="78" y2="48"/>
+        <line x1="80" y1="68" x2="74" y2="62"/>
+        <line x1="20" y1="68" x2="26" y2="62"/>
+        <line x1="15" y1="48" x2="22" y2="48"/>
+        <line x1="20" y1="28" x2="26" y2="34"/>
+      </g>
+    </symbol>
+    <symbol id="icon-broom" viewBox="0 0 100 100">
+      <rect x="42" y="15" width="16" height="40" rx="8" fill="#8B4513"/>
+      <ellipse cx="50" cy="65" rx="28" ry="10" fill="#E67E22"/>
+      <line x1="44" y1="72" x2="36" y2="90" stroke="#8B4513" stroke-width="4" stroke-linecap="round"/>
+      <line x1="56" y1="72" x2="64" y2="90" stroke="#8B4513" stroke-width="4" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-wipe" viewBox="0 0 100 100">
+      <rect x="30" y="20" width="40" height="55" rx="4" fill="#3498DB"/>
+      <rect x="35" y="25" width="30" height="8" fill="#ECF0F1"/>
+      <rect x="35" y="37" width="30" height="8" fill="#ECF0F1"/>
+      <rect x="35" y="49" width="30" height="8" fill="#ECF0F1"/>
+      <rect x="42" y="62" width="16" height="13" rx="2" fill="#95A5A6"/>
+    </symbol>
+    <symbol id="icon-chair" viewBox="0 0 100 100">
+      <rect x="25" y="55" width="50" height="8" rx="2" fill="#7F8C8D"/>
+      <rect x="27" y="32" width="46" height="23" rx="4" fill="#3498DB"/>
+      <rect x="22" y="63" width="8" height="22" rx="2" fill="#7F8C8D"/>
+      <rect x="70" y="63" width="8" height="22" rx="2" fill="#7F8C8D"/>
+    </symbol>
+    <symbol id="icon-chopsticks" viewBox="0 0 100 100">
+      <rect x="42" y="15" width="6" height="70" rx="3" fill="#8B4513"/>
+      <rect x="52" y="15" width="6" height="70" rx="3" fill="#8B4513"/>
+      <ellipse cx="47" cy="85" rx="14" ry="6" fill="#ECF0F1"/>
+    </symbol>
+    <symbol id="icon-ac" viewBox="0 0 100 100">
+      <rect x="25" y="25" width="50" height="50" rx="6" fill="#ECF0F1"/>
+      <circle cx="40" cy="45" r="6" fill="#3498DB"/>
+      <circle cx="60" cy="45" r="6" fill="#E74C3C"/>
+      <path d="M35 65 L43 73 L53 61 L59 69 L67 61 L73 71" stroke="#27AE60" stroke-width="3" fill="none"/>
+      <line x1="50" y1="20" x2="50" y2="25" stroke="#95A5A6" stroke-width="3"/>
+      <line x1="50" y1="75" x2="50" y2="80" stroke="#95A5A6" stroke-width="3"/>
+    </symbol>
+    <symbol id="icon-check" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="40" fill="#27AE60"/>
+      <polyline points="30,52 44,66 72,36" stroke="#FFF" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="icon-handwash" viewBox="0 0 100 100">
+      <ellipse cx="50" cy="58" rx="30" ry="24" fill="#E8F4FD"/>
+      <path d="M35 45 Q35 25 45 25 Q50 20 55 25 Q65 25 65 45" fill="#FAD7A1"/>
+      <rect x="33" y="42" width="8" height="26" rx="4" fill="#FAD7A1"/>
+      <rect x="42" y="38" width="8" height="30" rx="4" fill="#FAD7A1"/>
+      <rect x="51" y="38" width="8" height="30" rx="4" fill="#FAD7A1"/>
+      <rect x="60" y="42" width="8" height="26" rx="4" fill="#FAD7A1"/>
+      <circle cx="37" cy="54" r="3" fill="#87CEEB"/>
+      <circle cx="64" cy="54" r="3" fill="#87CEEB"/>
+    </symbol>
+    <symbol id="icon-box" viewBox="0 0 100 100">
+      <rect x="15" y="30" width="70" height="45" rx="4" fill="#E67E22"/>
+      <rect x="15" y="30" width="70" height="12" rx="4" fill="#D35400"/>
+      <line x1="50" y1="30" x2="50" y2="75" stroke="#D35400" stroke-width="2"/>
+      <line x1="15" y1="52" x2="85" y2="52" stroke="#D35400" stroke-width="2"/>
+    </symbol>
+    <symbol id="icon-shelf" viewBox="0 0 100 100">
+      <rect x="15" y="15" width="70" height="70" rx="3" fill="none" stroke="#7F8C8D" stroke-width="4"/>
+      <line x1="15" y1="38" x2="85" y2="38" stroke="#7F8C8D" stroke-width="3"/>
+      <line x1="15" y1="62" x2="85" y2="62" stroke="#7F8C8D" stroke-width="3"/>
+      <rect x="22" y="20" width="16" height="14" rx="2" fill="#E74C3C"/>
+      <rect x="42" y="20" width="16" height="14" rx="2" fill="#3498DB"/>
+      <rect x="62" y="20" width="16" height="14" rx="2" fill="#27AE60"/>
+      <rect x="22" y="43" width="16" height="14" rx="2" fill="#F39C12"/>
+      <rect x="42" y="43" width="16" height="14" rx="2" fill="#9B59B6"/>
+      <rect x="62" y="43" width="16" height="14" rx="2" fill="#1ABC9C"/>
+    </symbol>
+    <symbol id="icon-scan" viewBox="0 0 100 100">
+      <rect x="20" y="25" width="60" height="50" rx="4" fill="#34495E"/>
+      <rect x="28" y="33" width="44" height="34" rx="2" fill="#2C3E50"/>
+      <line x1="35" y1="40" x2="65" y2="40" stroke="#E74C3C" stroke-width="3" stroke-linecap="round"/>
+      <line x1="35" y1="48" x2="60" y2="48" stroke="#E74C3C" stroke-width="3" stroke-linecap="round"/>
+      <line x1="35" y1="56" x2="65" y2="56" stroke="#E74C3C" stroke-width="3" stroke-linecap="round"/>
+      <polygon points="50,58 55,68 45,68" fill="#E74C3C"/>
+      <line x1="50" y1="68" x2="50" y2="75" stroke="#E74C3C" stroke-width="3"/>
+    </symbol>
+    <symbol id="icon-money" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="38" fill="#27AE60"/>
+      <text x="50" y="62" text-anchor="middle" font-size="36" font-weight="bold" fill="#FFF">¥</text>
+    </symbol>
+    <symbol id="icon-bag" viewBox="0 0 100 100">
+      <path d="M25 40 L25 80 Q25 90 35 90 L65 90 Q75 90 75 80 L75 40 Z" fill="#E67E22"/>
+      <path d="M35 40 Q35 25 50 25 Q65 25 65 40" fill="none" stroke="#E67E22" stroke-width="5"/>
+      <circle cx="50" cy="62" r="8" fill="#F39C12"/>
+    </symbol>
+    <symbol id="icon-receipt" viewBox="0 0 100 100">
+      <rect x="20" y="15" width="60" height="70" rx="2" fill="#ECF0F1"/>
+      <line x1="28" y1="28" x2="72" y2="28" stroke="#BDC3C7" stroke-width="2"/>
+      <line x1="28" y1="38" x2="72" y2="38" stroke="#BDC3C7" stroke-width="2"/>
+      <line x1="28" y1="48" x2="60" y2="48" stroke="#BDC3C7" stroke-width="2"/>
+      <line x1="28" y1="58" x2="68" y2="58" stroke="#BDC3C7" stroke-width="2"/>
+      <text x="50" y="76" text-anchor="middle" font-size="14" font-weight="bold" fill="#27AE60">¥88</text>
+    </symbol>
+    <symbol id="icon-glove" viewBox="0 0 100 100">
+      <path d="M25 55 Q20 40 30 35 Q40 30 45 35 L55 35 Q65 30 75 35 Q85 40 80 55 L78 70 Q70 75 60 70 L40 70 Q30 75 22 70 Z" fill="#E67E22"/>
+      <line x1="30" y1="42" x2="30" y2="55" stroke="#D35400" stroke-width="2"/>
+      <line x1="40" y1="38" x2="40" y2="55" stroke="#D35400" stroke-width="2"/>
+      <line x1="50" y1="36" x2="50" y2="55" stroke="#D35400" stroke-width="2"/>
+      <line x1="60" y1="38" x2="60" y2="55" stroke="#D35400" stroke-width="2"/>
+      <line x1="70" y1="42" x2="70" y2="55" stroke="#D35400" stroke-width="2"/>
+    </symbol>
+    <symbol id="icon-walk" viewBox="0 0 100 100">
+      <circle cx="50" cy="30" r="15" fill="#FAD7A1"/>
+      <line x1="50" y1="45" x2="50" y2="70" stroke="#3498DB" stroke-width="8" stroke-linecap="round"/>
+      <line x1="50" y1="55" x2="35" y2="65" stroke="#3498DB" stroke-width="6" stroke-linecap="round"/>
+      <line x1="50" y1="55" x2="65" y2="62" stroke="#3498DB" stroke-width="6" stroke-linecap="round"/>
+      <line x1="50" y1="70" x2="40" y2="90" stroke="#2C3E50" stroke-width="6" stroke-linecap="round"/>
+      <line x1="50" y1="70" x2="65" y2="88" stroke="#2C3E50" stroke-width="6" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-ruler" viewBox="0 0 100 100">
+      <rect x="20" y="35" width="60" height="30" rx="2" fill="#F39C12"/>
+      <line x1="28" y1="35" x2="28" y2="50" stroke="#E67E22" stroke-width="2"/>
+      <line x1="40" y1="35" x2="40" y2="55" stroke="#E67E22" stroke-width="2"/>
+      <line x1="52" y1="35" x2="52" y2="50" stroke="#E67E22" stroke-width="2"/>
+      <line x1="64" y1="35" x2="64" y2="55" stroke="#E67E22" stroke-width="2"/>
+      <line x1="76" y1="35" x2="76" y2="50" stroke="#E67E22" stroke-width="2"/>
+    </symbol>
+    <symbol id="icon-tag" viewBox="0 0 100 100">
+      <path d="M30 20 L70 20 L85 35 L85 70 L70 85 L30 85 L15 70 L15 35 Z" fill="#3498DB"/>
+      <circle cx="50" cy="50" r="14" fill="#FFF"/>
+      <circle cx="50" cy="50" r="8" fill="#3498DB"/>
+      <circle cx="25" cy="25" r="6" fill="#FFF"/>
+    </symbol>
+    <symbol id="icon-apple" viewBox="0 0 100 100">
+      <path d="M50 20 C30 20 20 40 20 55 C20 75 35 88 50 88 C65 88 80 75 80 55 C80 40 70 20 50 20" fill="#E74C3C"/>
+      <path d="M50 20 Q50 8 60 5" stroke="#27AE60" stroke-width="4" fill="none"/>
+      <ellipse cx="58" cy="8" rx="8" ry="5" fill="#27AE60"/>
+      <ellipse cx="42" cy="50" rx="6" ry="10" fill="#C0392B" opacity="0.3"/>
+    </symbol>
+    <symbol id="icon-bottle" viewBox="0 0 100 100">
+      <rect x="38" y="15" width="24" height="15" rx="3" fill="#95A5A6"/>
+      <rect x="34" y="28" width="32" height="57" rx="6" fill="#3498DB"/>
+      <rect x="38" y="35" width="24" height="8" rx="2" fill="#ECF0F1" opacity="0.5"/>
+      <rect x="38" y="48" width="24" height="8" rx="2" fill="#ECF0F1" opacity="0.5"/>
+      <rect x="38" y="61" width="24" height="8" rx="2" fill="#ECF0F1" opacity="0.5"/>
+    </symbol>
+    <symbol id="icon-warning" viewBox="0 0 100 100">
+      <path d="M50 15 L90 82 Q92 88 86 88 L14 88 Q8 88 10 82 Z" fill="#F39C12"/>
+      <circle cx="50" cy="58" r="6" fill="#FFF"/>
+      <circle cx="50" cy="75" r="3" fill="#FFF"/>
+    </symbol>
+    <symbol id="icon-eye" viewBox="0 0 100 100">
+      <ellipse cx="50" cy="50" rx="40" ry="25" fill="#ECF0F1"/>
+      <circle cx="50" cy="50" r="18" fill="#3498DB"/>
+      <circle cx="50" cy="50" r="8" fill="#2C3E50"/>
+      <circle cx="56" cy="44" r="4" fill="#FFF"/>
+    </symbol>
+    <symbol id="icon-hose" viewBox="0 0 100 100">
+      <path d="M20 50 Q20 30 35 25 L65 25 Q80 30 80 50" stroke="#3498DB" stroke-width="8" fill="none" stroke-linecap="round"/>
+      <circle cx="80" cy="50" r="10" fill="#2980B9"/>
+      <path d="M80 60 Q85 75 75 85" stroke="#3498DB" stroke-width="4" fill="none"/>
+      <ellipse cx="75" cy="88" rx="8" ry="4" fill="#3498DB"/>
+      <path d="M30 28 Q25 45 35 55" stroke="#87CEEB" stroke-width="3" fill="none" opacity="0.6"/>
+      <path d="M45 26 Q42 42 48 52" stroke="#87CEEB" stroke-width="3" fill="none" opacity="0.6"/>
+      <path d="M60 26 Q58 42 62 52" stroke="#87CEEB" stroke-width="3" fill="none" opacity="0.6"/>
+    </symbol>
+    <symbol id="icon-soap" viewBox="0 0 100 100">
+      <rect x="28" y="30" width="44" height="50" rx="6" fill="#9B59B6"/>
+      <rect x="35" y="18" width="30" height="16" rx="4" fill="#8E44AD"/>
+      <ellipse cx="42" cy="50" rx="8" ry="12" fill="#D7BDE2"/>
+      <ellipse cx="58" cy="55" rx="6" ry="10" fill="#D7BDE2"/>
+      <ellipse cx="50" cy="65" rx="10" ry="8" fill="#D7BDE2"/>
+    </symbol>
+    <symbol id="icon-waterdrop" viewBox="0 0 100 100">
+      <path d="M50 15 Q20 50 20 65 Q20 88 50 88 Q80 88 80 65 Q80 50 50 15" fill="#3498DB"/>
+      <ellipse cx="38" cy="60" rx="8" ry="12" fill="#5DADE2" opacity="0.5"/>
+      <ellipse cx="62" cy="65" rx="6" ry="10" fill="#5DADE2" opacity="0.5"/>
+    </symbol>
+    <symbol id="icon-bubble" viewBox="0 0 100 100">
+      <circle cx="35" cy="55" r="25" fill="#ECF0F1"/>
+      <circle cx="65" cy="40" r="30" fill="#ECF0F1"/>
+      <circle cx="55" cy="32" r="8" fill="#ECF0F1"/>
+      <circle cx="72" cy="28" r="6" fill="#ECF0F1"/>
+      <circle cx="82" cy="38" r="5" fill="#ECF0F1"/>
+    </symbol>
+    <symbol id="icon-wheel" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="35" fill="none" stroke="#34495E" stroke-width="8"/>
+      <circle cx="50" cy="50" r="22" fill="none" stroke="#7F8C8D" stroke-width="4"/>
+      <circle cx="50" cy="50" r="8" fill="#34495E"/>
+      <line x1="50" y1="15" x2="50" y2="28" stroke="#7F8C8D" stroke-width="6" stroke-linecap="round"/>
+      <line x1="50" y1="72" x2="50" y2="85" stroke="#7F8C8D" stroke-width="6" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-towel" viewBox="0 0 100 100">
+      <rect x="20" y="25" width="60" height="50" rx="4" fill="#E74C3C"/>
+      <line x1="20" y1="38" x2="80" y2="38" stroke="#C0392B" stroke-width="2"/>
+      <line x1="20" y1="51" x2="80" y2="51" stroke="#C0392B" stroke-width="2"/>
+      <line x1="20" y1="64" x2="80" y2="64" stroke="#C0392B" stroke-width="2"/>
+    </symbol>
+    <symbol id="icon-window" viewBox="0 0 100 100">
+      <rect x="15" y="15" width="70" height="70" rx="3" fill="#85C1E9" stroke="#3498DB" stroke-width="4"/>
+      <line x1="50" y1="15" x2="50" y2="85" stroke="#3498DB" stroke-width="3"/>
+      <line x1="15" y1="50" x2="85" y2="50" stroke="#3498DB" stroke-width="3"/>
+      <polygon points="15,15 50,15 50,50" fill="#AED6F1"/>
+      <polygon points="85,15 50,15 50,50" fill="#D4E6F1"/>
+      <polygon points="15,85 50,85 50,50" fill="#79B8DB"/>
+      <polygon points="85,85 50,85 50,50" fill="#A9CCE3"/>
+    </symbol>
+    <symbol id="icon-door" viewBox="0 0 100 100">
+      <rect x="25" y="10" width="50" height="80" rx="3" fill="#8E44AD"/>
+      <rect x="32" y="17" width="36" height="66" rx="2" fill="#9B59B6"/>
+      <circle cx="62" cy="52" r="5" fill="#F1C40F"/>
+      <rect x="60" y="57" width="4" height="12" rx="1" fill="#F1C40F"/>
+    </symbol>
+    <symbol id="icon-vacuum" viewBox="0 0 100 100">
+      <rect x="40" y="15" width="20" height="35" rx="5" fill="#E74C3C"/>
+      <rect x="35" y="48" width="30" height="25" rx="4" fill="#C0392B"/>
+      <path d="M42 73 Q42 88 35 90 L65 90 Q58 88 58 73" fill="#95A5A6"/>
+      <line x1="35" y1="83" x2="25" y2="88" stroke="#7F8C8D" stroke-width="3" stroke-linecap="round"/>
+      <line x1="65" y1="83" x2="75" y2="88" stroke="#7F8C8D" stroke-width="3" stroke-linecap="round"/>
+      <path d="M30 60 Q25 55 28 50 M70 60 Q75 55 72 50" stroke="#BDC3C7" stroke-width="2" fill="none"/>
+    </symbol>
+    <symbol id="icon-dashboard" viewBox="0 0 100 100">
+      <rect x="15" y="35" width="70" height="45" rx="4" fill="#34495E"/>
+      <rect x="20" y="40" width="28" height="16" rx="2" fill="#3498DB"/>
+      <rect x="52" y="40" width="28" height="16" rx="2" fill="#2ECC71"/>
+      <rect x="20" y="60" width="18" height="16" rx="2" fill="#F39C12"/>
+      <rect x="42" y="60" width="18" height="16" rx="2" fill="#E74C3C"/>
+      <rect x="64" y="60" width="16" height="16" rx="2" fill="#9B59B6"/>
+      <circle cx="30" cy="24" r="4" fill="#E74C3C"/>
+      <circle cx="50" cy="24" r="4" fill="#F1C40F"/>
+      <circle cx="70" cy="24" r="4" fill="#2ECC71"/>
+    </symbol>
+    <symbol id="icon-mop" viewBox="0 0 100 100">
+      <rect x="42" y="15" width="16" height="30" rx="4" fill="#7F8C8D"/>
+      <ellipse cx="50" cy="60" rx="30" ry="12" fill="#27AE60"/>
+      <line x1="40" y1="68" x2="32" y2="88" stroke="#7F8C8D" stroke-width="4" stroke-linecap="round"/>
+      <line x1="60" y1="68" x2="68" y2="88" stroke="#7F8C8D" stroke-width="4" stroke-linecap="round"/>
+      <line x1="50" y1="68" x2="50" y2="90" stroke="#7F8C8D" stroke-width="4" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-bucket" viewBox="0 0 100 100">
+      <path d="M25 30 L30 80 Q32 90 50 90 Q68 90 70 80 L75 30 Z" fill="#3498DB"/>
+      <path d="M20 30 L80 30" stroke="#2980B9" stroke-width="6" stroke-linecap="round"/>
+      <ellipse cx="50" cy="30" rx="30" ry="6" fill="#5DADE2"/>
+      <rect x="42" y="10" width="16" height="20" rx="3" fill="#2980B9"/>
+    </symbol>
+    <symbol id="icon-trash" viewBox="0 0 100 100">
+      <path d="M30 30 L30 85 Q30 92 38 92 L62 92 Q70 92 70 85 L70 30" fill="#95A5A6"/>
+      <rect x="25" y="20" width="50" height="12" rx="3" fill="#7F8C8D"/>
+      <rect x="42" y="10" width="16" height="14" rx="2" fill="#7F8C8D"/>
+      <line x1="42" y1="45" x2="58" y2="45" stroke="#7F8C8D" stroke-width="3"/>
+      <line x1="42" y1="58" x2="58" y2="58" stroke="#7F8C8D" stroke-width="3"/>
+      <line x1="42" y1="71" x2="58" y2="71" stroke="#7F8C8D" stroke-width="3"/>
+    </symbol>
+    <symbol id="icon-car" viewBox="0 0 100 100">
+      <path d="M20 55 L25 35 Q30 25 45 25 L55 25 Q70 25 75 35 L80 55 Q85 60 85 70 L85 80 L15 80 L15 70 Q15 60 20 55" fill="#3498DB"/>
+      <rect x="22" y="58" width="18" height="20" rx="3" fill="#2C3E50"/>
+      <rect x="60" y="58" width="18" height="20" rx="3" fill="#2C3E50"/>
+      <circle cx="31" cy="82" r="8" fill="#34495E"/>
+      <circle cx="69" cy="82" r="8" fill="#34495E"/>
+      <rect x="38" y="30" width="24" height="14" rx="2" fill="#85C1E9"/>
+    </symbol>
+    <symbol id="icon-worker" viewBox="0 0 100 100">
+      <circle cx="50" cy="28" r="16" fill="#FAD7A1"/>
+      <rect x="32" y="46" width="36" height="40" rx="6" fill="#E67E22"/>
+      <rect x="28" y="52" width="12" height="20" rx="2" fill="#D35400"/>
+      <rect x="60" y="52" width="12" height="20" rx="2" fill="#D35400"/>
+      <rect x="38" y="58" width="24" height="8" rx="2" fill="#F39C12"/>
+      <rect x="42" y="68" width="16" height="8" rx="2" fill="#F39C12"/>
+      <polygon points="35,46 42,38 50,42 58,38 65,46" fill="#F1C40F"/>
+    </symbol>
+    <symbol id="icon-count" viewBox="0 0 100 100">
+      <rect x="25" y="20" width="50" height="60" rx="4" fill="#ECF0F1"/>
+      <text x="50" y="42" text-anchor="middle" font-size="20" font-weight="bold" fill="#333">1</text>
+      <text x="50" y="60" text-anchor="middle" font-size="20" font-weight="bold" fill="#333">2</text>
+      <text x="50" y="78" text-anchor="middle" font-size="20" font-weight="bold" fill="#333">3</text>
+      <line x1="35" y1="25" x2="35" y2="75" stroke="#BDC3C7" stroke-width="2"/>
+      <line x1="50" y1="25" x2="50" y2="75" stroke="#BDC3C7" stroke-width="2"/>
+      <line x1="65" y1="25" x2="65" y2="75" stroke="#BDC3C7" stroke-width="2"/>
+    </symbol>
+    <symbol id="icon-write" viewBox="0 0 100 100">
+      <rect x="25" y="20" width="50" height="60" rx="4" fill="#FFF" stroke="#3498DB" stroke-width="3"/>
+      <line x1="35" y1="32" x2="65" y2="32" stroke="#3498DB" stroke-width="3" stroke-linecap="round"/>
+      <line x1="35" y1="42" x2="60" y2="42" stroke="#3498DB" stroke-width="3" stroke-linecap="round"/>
+      <line x1="35" y1="52" x2="65" y2="52" stroke="#3498DB" stroke-width="3" stroke-linecap="round"/>
+      <line x1="35" y1="62" x2="55" y2="62" stroke="#3498DB" stroke-width="3" stroke-linecap="round"/>
+      <rect x="58" y="56" width="12" height="14" fill="#3498DB"/>
+    </symbol>
+    <symbol id="icon-send" viewBox="0 0 100 100">
+      <rect x="20" y="35" width="55" height="35" rx="4" fill="#ECF0F1"/>
+      <polygon points="75,47 90,50 75,53" fill="#3498DB"/>
+      <line x1="28" y1="48" x2="65" y2="48" stroke="#BDC3C7" stroke-width="3"/>
+      <line x1="28" y1="57" x2="60" y2="57" stroke="#BDC3C7" stroke-width="3"/>
+    </symbol>
+    <symbol id="icon-repeat" viewBox="0 0 100 100">
+      <path d="M25 50 A25 25 0 0 1 75 50" fill="none" stroke="#3498DB" stroke-width="6" stroke-linecap="round"/>
+      <polygon points="68,40 80,50 68,60" fill="#3498DB"/>
+      <path d="M75 50 A25 25 0 0 1 25 50" fill="none" stroke="#E74C3C" stroke-width="6" stroke-linecap="round"/>
+      <polygon points="32,40 20,50 32,60" fill="#E74C3C"/>
+    </symbol>
+    <symbol id="icon-putin" viewBox="0 0 100 100">
+      <path d="M25 50 L40 35 L60 35 L75 50 L60 65 L40 65 Z" fill="#27AE60"/>
+      <polygon points="50,30 58,45 50,55 42,45" fill="#FFF"/>
+      <line x1="50" y1="65" x2="50" y2="80" stroke="#27AE60" stroke-width="5" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-paper" viewBox="0 0 100 100">
+      <rect x="25" y="15" width="50" height="70" rx="3" fill="#FFF" stroke="#3498DB" stroke-width="3"/>
+      <polyline points="35,30 50,45 65,30" fill="none" stroke="#3498DB" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="35" y1="55" x2="65" y2="55" stroke="#BDC3C7" stroke-width="2"/>
+      <line x1="35" y1="65" x2="65" y2="65" stroke="#BDC3C7" stroke-width="2"/>
+      <line x1="35" y1="75" x2="55" y2="75" stroke="#BDC3C7" stroke-width="2"/>
+    </symbol>
+    <symbol id="icon-tissue" viewBox="0 0 100 100">
+      <rect x="30" y="20" width="40" height="55" rx="3" fill="#FDFEFE" stroke="#BDC3C7" stroke-width="2"/>
+      <line x1="30" y1="32" x2="70" y2="32" stroke="#BDC3C7" stroke-width="2"/>
+      <rect x="35" y="40" width="30" height="8" rx="1" fill="#ECF0F1"/>
+      <rect x="35" y="52" width="30" height="8" rx="1" fill="#ECF0F1"/>
+      <path d="M50 68 Q55 75 50 78 Q45 75 50 68" fill="#E74C3C"/>
+    </symbol>
+    <symbol id="icon-cup" viewBox="0 0 100 100">
+      <ellipse cx="50" cy="60" rx="28" ry="18" fill="#ECF0F1" stroke="#BDC3C7" stroke-width="3"/>
+      <path d="M30 58 L30 40 Q30 25 50 25 Q70 25 70 40 L70 58" fill="#FFF" stroke="#BDC3C7" stroke-width="3"/>
+      <ellipse cx="50" cy="40" rx="16" ry="6" fill="#87CEEB"/>
+    </symbol>
+    <symbol id="icon-plate" viewBox="0 0 100 100">
+      <ellipse cx="50" cy="60" rx="35" ry="20" fill="#ECF0F1" stroke="#BDC3C7" stroke-width="3"/>
+      <ellipse cx="50" cy="55" rx="28" ry="15" fill="#FFF"/>
+      <circle cx="38" cy="50" r="6" fill="#E74C3C"/>
+      <circle cx="50" cy="48" r="6" fill="#27AE60"/>
+      <circle cx="62" cy="50" r="6" fill="#3498DB"/>
+      <rect x="42" y="62" width="16" height="4" rx="2" fill="#F39C12"/>
+    </symbol>
+    <symbol id="icon-coins" viewBox="0 0 100 100">
+      <circle cx="35" cy="50" r="18" fill="#F1C40F" stroke="#D4AC0D" stroke-width="3"/>
+      <text x="35" y="56" text-anchor="middle" font-size="16" font-weight="bold" fill="#8B6914">1</text>
+      <circle cx="65" cy="50" r="18" fill="#F1C40F" stroke="#D4AC0D" stroke-width="3"/>
+      <text x="65" y="56" text-anchor="middle" font-size="16" font-weight="bold" fill="#8B6914">5</text>
+    </symbol>
+    <symbol id="icon-wave" viewBox="0 0 100 100">
+      <path d="M10 50 Q25 35 40 50 T70 50 T100 50" fill="none" stroke="#3498DB" stroke-width="6" stroke-linecap="round"/>
+      <path d="M10 65 Q25 50 40 65 T70 65 T100 65" fill="none" stroke="#5DADE2" stroke-width="4" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-celebrate" viewBox="0 0 100 100">
+      <polygon points="50,15 53,28 67,28 55,40 70,40 58,53 72,58 50,70 28,58 42,53 30,40 45,40 33,28 47,28" fill="#F1C40F"/>
+      <circle cx="25" cy="30" r="5" fill="#E74C3C"/>
+      <circle cx="75" cy="25" r="6" fill="#E74C3C"/>
+      <circle cx="80" cy="45" r="4" fill="#3498DB"/>
+      <circle cx="18" cy="50" r="5" fill="#27AE60"/>
+      <circle cx="72" cy="68" r="5" fill="#9B59B6"/>
+      <circle cx="28" cy="72" r="4" fill="#F39C12"/>
+    </symbol>
+    <symbol id="icon-search-help" viewBox="0 0 100 100">
+      <circle cx="50" cy="45" r="30" fill="none" stroke="#3498DB" stroke-width="6"/>
+      <line x1="72" y1="67" x2="85" y2="80" stroke="#3498DB" stroke-width="6" stroke-linecap="round"/>
+      <text x="50" y="55" text-anchor="middle" font-size="28" font-weight="bold" fill="#3498DB">?</text>
+    </symbol>
+    <symbol id="icon-help-big" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="42" fill="#E74C3C"/>
+      <text x="50" y="65" text-anchor="middle" font-size="52" font-weight="bold" fill="#FFF">!</text>
+    </symbol>
+    <symbol id="icon-simple" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="38" fill="#F39C12"/>
+      <text x="50" y="42" text-anchor="middle" font-size="28" font-weight="bold" fill="#FFF">简单</text>
+      <line x1="30" y1="58" x2="70" y2="58" stroke="#FFF" stroke-width="3"/>
+      <line x1="30" y1="66" x2="70" y2="66" stroke="#FFF" stroke-width="3"/>
+      <line x1="30" y1="74" x2="70" y2="74" stroke="#FFF" stroke-width="3"/>
+    </symbol>
+  </svg>
+
+  <div id="app">
+    <header class="app-header">
+      <h1>🏪 一步步</h1>
+      <p class="subtitle">一步一步，完成工作</p>
+      <button class="profile-chip" id="current-profile-btn">当前使用者</button>
+      <div class="streak-badge" id="streak-badge">
+        <span class="streak-icon">🔥</span>
+        <span class="streak-count" id="streak-count">0</span>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section id="home-page" class="page active">
+        <div class="welcome-card">
+          <p>你好！这里是后场工作帮手。</p>
+          <p>选一个任务，跟着提示一步一步做，卡住了也可以马上求助。</p>
+        </div>
+
+        <div class="resume-card" id="resume-card" style="display: none;">
+          <div>
+            <p class="resume-label">上次做到这里</p>
+            <p class="resume-title" id="resume-title">继续任务</p>
+          </div>
+          <button class="btn btn-primary" id="resume-btn">继续完成</button>
+        </div>
+
+        <div class="quick-actions">
+          <button class="quick-action-btn" id="manage-profile-btn">👤 切换使用者</button>
+          <button class="quick-action-btn" id="create-task-btn">📝 新建任务</button>
+          <button class="quick-action-btn" id="share-progress-btn">📤 分享进度</button>
+          <button class="quick-action-btn" id="video-idea-btn">📹 视频通话设想</button>
+        </div>
+
+        <div class="category-tabs" id="category-tabs">
+          <button class="category-tab active" data-category="all">全部</button>
+          <button class="category-tab" data-category="restaurant">🍽️ 餐厅</button>
+          <button class="category-tab" data-category="snack">🍬 零食</button>
+          <button class="category-tab" data-category="warehouse">📦 仓库</button>
+          <button class="category-tab" data-category="carwash">🚗 洗车</button>
+        </div>
+
+        <h2 class="section-title">选择要做的事情</h2>
+
+        <div class="task-grid" id="task-grid">
+        </div>
+      </section>
+
+      <section id="task-page" class="page">
+        <div class="task-header">
+          <button class="back-btn" id="back-btn">← 返回</button>
+          <h2 id="task-title">任务名称</h2>
+        </div>
+
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <p class="progress-text" id="progress-text">第 1 步，共 5 步</p>
+
+        <div class="step-card" id="step-card">
+          <div class="step-image-wrapper">
+            <img class="step-photo hidden" id="step-photo" alt="用户上传的步骤参考图">
+            <svg class="step-image" id="step-image" viewBox="0 0 100 100"></svg>
+            <div class="step-image-placeholder hidden" id="step-image-placeholder">
+              <span>还没有参考图</span>
+            </div>
+          </div>
+          <div class="step-content" id="step-content">
+            <p class="step-instruction" id="step-instruction"></p>
+            <p class="step-detail" id="step-detail"></p>
+            <p class="step-why" id="step-why"></p>
+          </div>
+          <button class="voice-btn" id="voice-btn" title="朗读">🔊 朗读</button>
+        </div>
+
+        <div class="image-panel">
+          <p class="image-panel-title">参考图片</p>
+          <p class="image-panel-text">你可以上传这一步的参考照片，方便以后照着做。</p>
+          <input type="file" id="step-image-input" accept="image/png,image/jpeg,image/webp" hidden>
+          <div class="image-actions">
+            <button class="btn btn-secondary" id="upload-image-btn">上传参考图</button>
+            <button class="btn btn-secondary" id="replace-image-btn">更换图片</button>
+            <button class="btn btn-secondary" id="remove-image-btn">删除图片</button>
+          </div>
+        </div>
+
+        <div class="action-buttons">
+          <button class="btn btn-primary btn-large" id="done-btn">
+            ✓ 我做完了
+          </button>
+        </div>
+
+        <div class="help-section">
+          <p class="help-label">卡住了吗？试试这些：</p>
+          <div class="help-buttons">
+            <button class="btn btn-help" id="help-simplify">👉 再说简单一点</button>
+            <button class="btn btn-help" id="help-notfound">🔍 我没找到</button>
+            <button class="btn btn-help" id="help-need">🆘 我需要帮助</button>
+            <button class="btn btn-contact" id="contact-btn">📞 联系同事</button>
+          </div>
+        </div>
+
+        <div class="assist-panel hidden" id="assist-panel">
+          <p class="assist-title" id="assist-title">辅助提示</p>
+          <div class="assist-content" id="assist-content"></div>
+          <button class="btn btn-secondary" id="assist-close-btn">我知道了</button>
+        </div>
+      </section>
+
+      <section id="complete-page" class="page">
+        <div class="complete-card">
+          <div class="complete-icon" id="complete-icon">🎉</div>
+          <h2 id="complete-title">做完了！</h2>
+          <p id="complete-message">太棒了！你已经完成了这个任务。</p>
+          <div class="reward-section" id="reward-section" style="display: none;">
+            <div class="reward-badge" id="reward-badge"></div>
+            <p class="reward-text" id="reward-text"></p>
+          </div>
+          <button class="btn btn-primary btn-large" id="restart-btn">再做一次</button>
+          <button class="btn btn-secondary btn-large" id="home-btn">返回首页</button>
+        </div>
+      </section>
+
+      <section id="stats-page" class="page">
+        <div class="stats-header">
+          <button class="back-btn" id="stats-back-btn">← 返回</button>
+          <h2>📊 学习记录</h2>
+        </div>
+
+        <div class="stats-card">
+          <div class="stats-summary">
+            <div class="stat-item">
+              <span class="stat-number" id="total-tasks">0</span>
+              <span class="stat-label">完成任务数</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-number" id="total-steps">0</span>
+              <span class="stat-label">完成步骤数</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-number" id="help-count">0</span>
+              <span class="stat-label">求助次数</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="streak-card">
+          <h3>🔥 连续完成</h3>
+          <div class="streak-info">
+            <span class="streak-big" id="streak-big">0</span>
+            <span>天连续完成任务</span>
+          </div>
+          <p class="streak-tip" id="streak-tip">今天还没有完成任务哦，加油！</p>
+        </div>
+
+        <div class="calendar-section">
+          <h3>📅 打卡日历</h3>
+          <div class="calendar-grid" id="calendar-grid">
+          </div>
+        </div>
+
+        <div class="history-section">
+          <h3>最近完成的任务</h3>
+          <div class="history-list" id="history-list">
+            <p class="empty-history">还没有完成记录，开始完成任务吧！</p>
+          </div>
+        </div>
+
+        <div class="history-section">
+          <h3>最常卡住的步骤</h3>
+          <div class="history-list" id="blocked-list">
+            <p class="empty-history">还没有卡点记录，先试着完成任务吧！</p>
+          </div>
+        </div>
+
+        <button class="btn btn-secondary" id="clear-stats-btn">清除记录</button>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="nav-btn" id="nav-home">
+        <span class="nav-icon">🏠</span>
+        <span class="nav-text">首页</span>
+      </button>
+      <button class="nav-btn" id="nav-stats">
+        <span class="nav-icon">📊</span>
+        <span class="nav-text">记录</span>
+      </button>
+    </nav>
+  </div>
+
+  <div class="modal-overlay hidden" id="modal-overlay">
+      <div class="modal-card">
+        <p class="modal-title" id="modal-title">提示</p>
+        <div class="modal-message" id="modal-message"></div>
+        <div class="modal-actions" id="modal-actions"></div>
+      </div>
+    </div>
+
+  <script src="tasks.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
