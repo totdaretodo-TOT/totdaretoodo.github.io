@@ -1,0 +1,22 @@
+{
+  "name": "yibubu-houchang",
+  "version": "1.0.0",
+  "private": true,
+  "description": "后场一步步 Android packaging project",
+  "scripts": {
+    "prepare:web": "powershell -NoProfile -ExecutionPolicy Bypass -File ./tools/prepare-web.ps1",
+    "android:local-properties": "powershell -NoProfile -ExecutionPolicy Bypass -File ./tools/create-local-properties.ps1",
+    "cap:sync": "powershell -NoProfile -Command \"npm run prepare:web; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npx cap sync android\"",
+    "cap:open": "powershell -NoProfile -Command \"npx cap open android\"",
+    "android:apk": "powershell -NoProfile -Command \"npm run prepare:web; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npx cap sync android; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; Set-Location android; .\\gradlew.bat assembleDebug\""
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.1.0",
+    "@capacitor/core": "^7.1.0",
+    "@capacitor/status-bar": "^7.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.1.0",
+    "typescript": "^6.0.3"
+  }
+}

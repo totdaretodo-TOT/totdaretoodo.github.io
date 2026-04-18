@@ -1,0 +1,51 @@
+{
+  "name": "一步步",
+  "appid": "com.yibubu.houchang",
+  "description": "门店工作助手 - 帮助心智障碍群体完成工作任务",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "app-plus": {
+    "usingComponents": true,
+    "splashscreen": {
+      "alwaysShowBeforeRender": true,
+      "waiting": true,
+      "autoclose": true,
+      "delay": 0
+    },
+    "modules": {},
+    "distribute": {
+      "android": {
+        "permissions": [
+          "<uses-permission android:name=\"android.permission.CALL_PHONE\"/>",
+          "<uses-permission android:name=\"android.permission.INTERNET\"/>",
+          "<uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>"
+        ],
+        "targetSdkVersion": 30,
+        "minSdkVersion": 21,
+        "abiFilters": ["armeabi-v7a", "arm64-v8a"]
+      },
+      "icons": {
+        "android": {
+          "hdpi": "assets/icon-512.svg",
+          "xhdpi": "assets/icon-512.svg",
+          "xxhdpi": "assets/icon-512.svg"
+        }
+      },
+      "splashscreen": {
+        "android": {
+          "hdpi": "assets/splash.svg",
+          "xhdpi": "assets/splash.svg",
+          "xxhdpi": "assets/splash.svg"
+        }
+      }
+    }
+  },
+  "h5": {
+    "router": {
+      "mode": "hash",
+      "base": "./"
+    },
+    "title": "一步步",
+    "themeColor": "#27AE60"
+  }
+}
