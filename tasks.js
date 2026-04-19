@@ -1,4 +1,4 @@
-﻿const tasks = [
+const tasks = [
   {
     id: "restaurant-opening",
     title: "餐厅开店前准备",
@@ -12,6 +12,7 @@
         simplify: "戴帽子，围围裙。",
         image: "icon-uniform",
         userImageKey: "restaurant-opening-step-0",
+        videoUrl: "",
         helpNotFound: ["先看更衣区的挂钩", "看看收纳箱里有没有帽子和围裙", "还是没有就去问值班同事"],
         helpNeed: ["我现在要穿工作服，找不到帽子。", "请帮我看一下围裙放在哪里。"],
         whyItMatters: "先穿好工作服，后面的整理和清洁才符合门店要求。"
@@ -22,6 +23,7 @@
         simplify: "把桌子擦干净。",
         image: "icon-wipe",
         userImageKey: "restaurant-opening-step-1",
+        videoUrl: "",
         helpNotFound: ["先找红色或蓝色抹布", "看看水池边或清洁篮里有没有", "找不到就问同事抹布在哪里"],
         helpNeed: ["我做到擦工作台这一步了，找不到抹布。", "请帮我看一下备餐台哪里还需要擦。"],
         whyItMatters: "工作台干净了，摆工具和处理食材才更安心。"
@@ -32,6 +34,7 @@
         simplify: "把工具放回平时的位置。",
         image: "icon-chopsticks",
         userImageKey: "restaurant-opening-step-2",
+        videoUrl: "",
         helpNotFound: ["先看工作台左边的小盒子", "再看餐具柜最上层", "还是找不到就问同事餐具放哪"],
         helpNeed: ["我做到摆餐具这一步了，找不到夹子。", "请告诉我纸巾和餐具应该放哪里。"],
         whyItMatters: "工具摆整齐，开店后拿取更快，也不容易手忙脚乱。"
@@ -42,6 +45,7 @@
         simplify: "看看常用东西是不是都够。",
         image: "icon-eye",
         userImageKey: "restaurant-opening-step-3",
+        videoUrl: "",
         helpNotFound: ["先看台面下方的储物柜", "再看后面的补货架", "如果缺东西就告诉同事要补货"],
         helpNeed: ["我在检查原料，发现这里可能不够用了。", "请帮我确认一下哪些东西还需要补。"],
         whyItMatters: "开店前先检查，能减少营业时临时缺东西的情况。"
@@ -52,6 +56,7 @@
         simplify: "把新垃圾袋套进垃圾桶。",
         image: "icon-trash",
         userImageKey: "restaurant-opening-step-4",
+        videoUrl: "",
         helpNotFound: ["先看垃圾桶旁边的抽屉", "再看清洁用品收纳箱", "找不到就问同事垃圾袋在哪里"],
         helpNeed: ["我做到套垃圾袋这一步了，找不到垃圾袋。", "请帮我看一下这个垃圾袋怎么套稳。"],
         whyItMatters: "垃圾袋先准备好，后面清洁和营业都会更顺手。"
@@ -62,6 +67,7 @@
         simplify: "再看一眼，都准备好了就行。",
         image: "icon-check",
         userImageKey: "restaurant-opening-step-5",
+        videoUrl: "",
         helpNotFound: ["先从左到右看一遍台面", "再看地上有没有垃圾", "不确定时请同事帮你再看一次"],
         helpNeed: ["我已经做到最后检查了，请帮我看看还有没有漏掉。", "请确认一下这一区域是不是准备好了。"],
         whyItMatters: "最后检查能让开店前的准备更完整，减少遗漏。"

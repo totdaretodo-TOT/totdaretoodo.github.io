@@ -18,6 +18,106 @@
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+/* 夜间模式 */
+body.dark-mode {
+  --bg: #1a1a2e;
+  --card-bg: #16213e;
+  --text: #e8e8e8;
+  --text-light: #a0a0a0;
+  --border: #2d3a4f;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode {
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+body.dark-mode .app-header {
+  background-color: #0f3460;
+}
+
+body.dark-mode .card-bg,
+body.dark-mode .task-card,
+body.dark-mode .step-card,
+body.dark-mode .welcome-card,
+body.dark-mode .quick-action-btn,
+body.dark-mode .category-tab,
+body.dark-mode .image-panel,
+body.dark-mode .help-section,
+body.dark-mode .stats-card,
+body.dark-mode .calendar-section,
+body.dark-mode .history-section,
+body.dark-mode .confirm-card,
+body.dark-mode .modal-card,
+body.dark-mode .profile-row,
+body.dark-mode .contact-row,
+body.dark-mode .back-btn,
+body.dark-mode .nav-btn {
+  background-color: var(--card-bg);
+  color: var(--text);
+}
+
+body.dark-mode .step-why,
+body.dark-mode .image-panel-text,
+body.dark-mode .image-panel-title {
+  background-color: #1e2a3f;
+  color: var(--text);
+}
+
+body.dark-mode .progress-bar {
+  background-color: #2d3a4f;
+}
+
+body.dark-mode .step-risk-card {
+  background: #2d1f1f;
+  border-color: #5c3a3a;
+}
+
+body.dark-mode .step-risk-card .step-risk-level,
+body.dark-mode .step-risk-card .step-risk-text,
+body.dark-mode .step-risk-card .step-risk-list {
+  color: #f5c6c6;
+}
+
+body.dark-mode .btn-secondary {
+  background-color: #1e2a3f;
+  border-color: #3d4a5f;
+  color: var(--text);
+}
+
+body.dark-mode .smart-help-banner {
+  background: linear-gradient(135deg, #1a3a2a, #1a4a3a);
+  border-color: #2a5a3a;
+}
+
+body.dark-mode .smart-help-text {
+  color: #90d4a0;
+}
+
+/* 高对比模式 */
+body.high-contrast {
+  --primary: #00cc66;
+  --text: #ffffff;
+  --bg: #000000;
+  --card-bg: #111111;
+  --border: #ffffff;
+}
+
+body.high-contrast .step-instruction {
+  font-size: 28px;
+  font-weight: 900;
+}
+
+body.high-contrast .btn {
+  border: 3px solid currentColor;
+}
+
+body.high-contrast .task-card,
+body.high-contrast .step-card {
+  border: 3px solid var(--primary);
+}
+
 /* 隐私弹窗样式 */
 .privacy-popup-overlay {
   position: fixed;
@@ -158,6 +258,29 @@ body {
 .subtitle {
   font-size: 14px;
   opacity: 0.9;
+}
+
+.mode-toggle {
+  position: absolute;
+  top: 12px;
+  right: 80px;
+}
+
+.mode-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mode-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .streak-badge {
@@ -406,7 +529,60 @@ body {
   text-align: center;
   font-size: 14px;
   color: var(--text-light);
-  margin-bottom: 24px;
+  margin-bottom: 16px;
+}
+
+.emergency-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto 16px;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
+  transition: all 0.2s ease;
+  animation: emergency-pulse 2s ease-in-out infinite;
+}
+
+@keyframes emergency-pulse {
+  0%, 100% { box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4); }
+  50% { box-shadow: 0 4px 20px rgba(231, 76, 60, 0.7); }
+}
+
+.emergency-btn:hover {
+  transform: scale(1.02);
+  background: linear-gradient(135deg, #c0392b, #a93226);
+}
+
+.emergency-btn:active {
+  transform: scale(0.98);
+}
+
+.emergency-icon {
+  font-size: 24px;
+}
+
+.emergency-label {
+  letter-spacing: 1px;
+}
+
+body.dark-mode .emergency-btn {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+
+body.high-contrast .emergency-btn {
+  background: #ff0000;
+  border: 3px solid #ffffff;
+  font-size: 22px;
 }
 
 .step-card {
@@ -720,6 +896,39 @@ body {
 
 .step-risk-card.high .step-risk-level {
   color: #b91c1c;
+}
+
+.video-panel {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.video-container {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto 12px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000;
+}
+
+.video-container video {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.video-panel .image-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.video-panel .btn {
+  flex: 1;
+  min-width: 120px;
 }
 
 .step-risk-badge {

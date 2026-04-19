@@ -419,6 +419,10 @@
         <span class="streak-icon">🔥</span>
         <span class="streak-count" id="streak-count">0</span>
       </div>
+      <div class="mode-toggle">
+          <button class="mode-btn" id="mode-toggle-btn" title="切换显示模式">🌓</button>
+          <button class="mode-btn" id="voice-settings-btn" title="语音设置">🔊</button>
+        </div>
     </header>
 
     <main id="main-content">
@@ -468,6 +472,11 @@
         </div>
         <p class="progress-text" id="progress-text">第 1 步，共 5 步</p>
 
+        <button class="emergency-btn" id="emergency-btn">
+          <span class="emergency-icon">🆘</span>
+          <span class="emergency-label">紧急求助</span>
+        </button>
+
         <div class="smart-help-banner hidden" id="smart-help-banner">
           <span class="smart-help-badge">AI &#25552;&#37266;</span>
           <p class="smart-help-text" id="smart-help-text">&#22914;&#26524;&#36825;&#19968;&#27493;&#20572;&#30041;&#22826;&#20037;&#65292;&#31995;&#32479;&#20250;&#20027;&#21160;&#32473;&#20320;&#24110;&#21161;&#12290;</p>
@@ -507,6 +516,19 @@
             <button class="btn btn-secondary" id="annotate-image-btn">&#26631;&#27880;&#22270;&#29255;</button>
             <button class="btn btn-secondary" id="replace-image-btn">更换图片</button>
             <button class="btn btn-secondary" id="remove-image-btn">删除图片</button>
+          </div>
+        </div>
+
+        <div class="video-panel" id="video-panel">
+          <p class="image-panel-title">📹 视频教程</p>
+          <p class="image-panel-text">点击上传视频，可以看到这一步的操作演示。</p>
+          <div class="video-container" id="video-container" style="display:none;">
+            <video id="step-video" controls playsinline></video>
+          </div>
+          <input type="file" id="step-video-input" accept="video/mp4,video/webm" hidden>
+          <div class="image-actions">
+            <button class="btn btn-secondary" id="upload-video-btn">📤 上传视频</button>
+            <button class="btn btn-secondary" id="remove-video-btn" style="display:none;">🗑️ 删除视频</button>
           </div>
         </div>
 

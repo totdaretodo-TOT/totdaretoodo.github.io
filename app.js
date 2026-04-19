@@ -5,10 +5,16 @@ const encouragementMessages = [
 ];
 
 const rewardMessages = {
-  first: { icon: "🌱", text: "第一次完成任务，已经迈出很好的一步。" },
-  streak3: { icon: "🔥", text: "连续 3 天完成任务，状态越来越稳。" },
-  streak7: { icon: "⭐", text: "连续 7 天完成任务，很有坚持力。" },
-  tasks10: { icon: "🎯", text: "已经完成 10 个任务，熟练度在提升。" }
+  first: { icon: "🌱", text: "第一次完成任务，已经迈出很好的一步。", name: "初次完成" },
+  streak3: { icon: "🔥", text: "连续 3 天完成任务，状态越来越稳。", name: "三天连续" },
+  streak7: { icon: "⭐", text: "连续 7 天完成任务，很有坚持力。", name: "一周连续" },
+  streak30: { icon: "🏆", text: "连续 30 天完成任务，太厉害了！", name: "一月连续" },
+  tasks10: { icon: "🎯", text: "已经完成 10 个任务，熟练度在提升。", name: "十次完成" },
+  tasks50: { icon: "💪", text: "已经完成 50 个任务，继续加油！", name: "五十次完成" },
+  tasks100: { icon: "👑", text: "已经完成 100 个任务，太了不起了！", name: "百次完成" },
+  help0: { icon: "🚀", text: "本次任务没有求助，超级独立！", name: "独立完成" },
+  perfect3: { icon: "💎", text: "连续 3 次没有求助，太棒了！", name: "小完美" },
+  perfect10: { icon: "💎", text: "连续 10 次没有求助，非常厉害！", name: "大完美" }
 };
 
 const IMAGE_DB_NAME = "houchang-image-db";
@@ -177,6 +183,7 @@ class HouChangApp {
   async init() {
     await this.checkImageStore();
     await this.checkPrivacyAgreement();
+    this.loadDisplayMode();
     this.reloadProfileScopedData();
     this.bindEvents();
     this.renderTaskGrid();
@@ -229,6 +236,7 @@ class HouChangApp {
       totalSteps: 0,
       helpCount: 0,
       autoHelpCount: 0,
+      consecutiveNoHelpTasks: 0,
       history: [],
       streak: 0,
       lastCompletedDate: null,
@@ -421,6 +429,18 @@ class HouChangApp {
         });
       }
     });
+  }
+
+  handleEmergencyCall() {
+    if (navigator.vibrate) {
+      navigator.vibrate([200, 100, 200]);
+    }
+    if (this.contacts && this.contacts.length > 0) {
+      const firstContact = this.contacts[0];
+      window.location.href = `tel:${firstContact.phone}`;
+    } else {
+      this.infoModal("未设置联系人", "请先在设置中添加紧急联系人。\n\n点击右上角「当前使用者」→「管理联系人」来添加。");
+    }
   }
 
   promptResumeIfNeeded() {
@@ -847,6 +867,13 @@ class HouChangApp {
     this.stats.totalTasks += 1;
     this.stats.history.unshift({ task: taskTitle, time: new Date().toLocaleString("zh-CN") });
     if (this.stats.history.length > 20) this.stats.history = this.stats.history.slice(0, 20);
+
+    if (this.stats.helpCount === 0) {
+      this.stats.consecutiveNoHelpTasks += 1;
+    } else {
+      this.stats.consecutiveNoHelpTasks = 0;
+    }
+
     this.checkAndUpdateStreak();
     this.saveStats();
   }
@@ -876,6 +903,8 @@ class HouChangApp {
 
   checkAchievements() {
     const rewards = [];
+    const wasHelpUsedThisTask = this.stats.helpCount > 0;
+
     if (this.stats.totalTasks === 1 && !this.stats.achievements.includes("first")) {
       this.stats.achievements.push("first");
       rewards.push(rewardMessages.first);
@@ -888,9 +917,33 @@ class HouChangApp {
       this.stats.achievements.push("streak7");
       rewards.push(rewardMessages.streak7);
     }
+    if (this.stats.streak >= 30 && !this.stats.achievements.includes("streak30")) {
+      this.stats.achievements.push("streak30");
+      rewards.push(rewardMessages.streak30);
+    }
     if (this.stats.totalTasks >= 10 && !this.stats.achievements.includes("tasks10")) {
       this.stats.achievements.push("tasks10");
       rewards.push(rewardMessages.tasks10);
+    }
+    if (this.stats.totalTasks >= 50 && !this.stats.achievements.includes("tasks50")) {
+      this.stats.achievements.push("tasks50");
+      rewards.push(rewardMessages.tasks50);
+    }
+    if (this.stats.totalTasks >= 100 && !this.stats.achievements.includes("tasks100")) {
+      this.stats.achievements.push("tasks100");
+      rewards.push(rewardMessages.tasks100);
+    }
+    if (!wasHelpUsedThisTask && !this.stats.achievements.includes("help0")) {
+      this.stats.achievements.push("help0");
+      rewards.push(rewardMessages.help0);
+    }
+    if (this.stats.consecutiveNoHelpTasks >= 3 && !this.stats.achievements.includes("perfect3")) {
+      this.stats.achievements.push("perfect3");
+      rewards.push(rewardMessages.perfect3);
+    }
+    if (this.stats.consecutiveNoHelpTasks >= 10 && !this.stats.achievements.includes("perfect10")) {
+      this.stats.achievements.push("perfect10");
+      rewards.push(rewardMessages.perfect10);
     }
     this.saveStats();
     return rewards.length ? rewards[rewards.length - 1] : null;
@@ -951,6 +1004,7 @@ class HouChangApp {
     document.getElementById("help-notfound").addEventListener("click", () => this.showAssist("notfound"));
     document.getElementById("help-need").addEventListener("click", () => this.showAssist("need"));
     document.getElementById("contact-btn").addEventListener("click", () => this.showContactList());
+    document.getElementById("emergency-btn").addEventListener("click", () => this.handleEmergencyCall());
     document.getElementById("assist-close-btn").addEventListener("click", () => this.hideAssist());
     document.getElementById("restart-btn").addEventListener("click", () => this.restartTask());
     document.getElementById("home-btn").addEventListener("click", () => this.goHome());
@@ -973,6 +1027,84 @@ class HouChangApp {
     document.getElementById("replace-image-btn").addEventListener("click", () => document.getElementById("step-image-input").click());
     document.getElementById("remove-image-btn").addEventListener("click", () => this.removeCurrentStepImage());
     document.getElementById("step-image-input").addEventListener("change", event => this.handleImageSelected(event));
+
+    document.getElementById("upload-video-btn").addEventListener("click", () => document.getElementById("step-video-input").click());
+    document.getElementById("remove-video-btn").addEventListener("click", () => this.removeCurrentStepVideo());
+    document.getElementById("step-video-input").addEventListener("change", event => this.handleVideoSelected(event));
+
+    document.getElementById("mode-toggle-btn").addEventListener("click", () => this.toggleDisplayMode());
+    document.getElementById("voice-settings-btn").addEventListener("click", () => this.openVoiceSettings());
+  }
+
+  toggleDisplayMode() {
+    const body = document.body;
+    const currentMode = localStorage.getItem("display-mode") || "normal";
+
+    if (currentMode === "normal") {
+      body.classList.add("dark-mode");
+      localStorage.setItem("display-mode", "dark");
+    } else if (currentMode === "dark") {
+      body.classList.remove("dark-mode");
+      body.classList.add("high-contrast");
+      localStorage.setItem("display-mode", "high-contrast");
+    } else {
+      body.classList.remove("high-contrast");
+      localStorage.setItem("display-mode", "normal");
+    }
+  }
+
+  loadDisplayMode() {
+    const saved = localStorage.getItem("display-mode");
+    if (saved === "dark") {
+      document.body.classList.add("dark-mode");
+    } else if (saved === "high-contrast") {
+      document.body.classList.add("high-contrast");
+    }
+  }
+
+  openVoiceSettings() {
+    const savedLang = localStorage.getItem("voice-lang") || "zh-CN";
+    const savedRate = localStorage.getItem("voice-rate") || "0.88";
+    const html = `
+      <label class="field-label">语音语言</label>
+      <select id="voice-lang-select">
+        <option value="zh-CN" ${savedLang === "zh-CN" ? "selected" : ""}>普通话</option>
+        <option value="zh-TW" ${savedLang === "zh-TW" ? "selected" : ""}>粤语</option>
+        <option value="zh-CN" ${savedLang === "min-nan" ? "selected" : ""}>闽南语（部分设备支持）</option>
+      </select>
+      <label class="field-label">语速（0.5 最慢 ~ 1.5 最快）</label>
+      <input id="voice-rate-input" type="range" min="0.5" max="1.5" step="0.1" value="${savedRate}">
+      <p class="inline-note">当前语速：<span id="voice-rate-display">${savedRate}</span></p>
+      <p class="inline-note">注意：部分设备可能不支持所有语言，请以实际播放效果为准。</p>
+    `;
+    this.showModal({
+      title: "🔊 语音设置",
+      html,
+      actions: [
+        { label: "取消", variant: "secondary", onClick: () => {} },
+        { label: "保存", variant: "primary", onClick: () => {
+            const lang = document.getElementById("voice-lang-select").value;
+            const rate = document.getElementById("voice-rate-input").value;
+            localStorage.setItem("voice-lang", lang);
+            localStorage.setItem("voice-rate", rate);
+            this.infoModal("设置已保存", "语音语言和语速已保存，下次朗读时生效。");
+          } }
+      ],
+      afterRender: () => {
+        const rateInput = document.getElementById("voice-rate-input");
+        const rateDisplay = document.getElementById("voice-rate-display");
+        rateInput.addEventListener("input", () => {
+          rateDisplay.textContent = rateInput.value;
+        });
+      }
+    });
+  }
+
+  getVoiceSettings() {
+    return {
+      lang: localStorage.getItem("voice-lang") || "zh-CN",
+      rate: parseFloat(localStorage.getItem("voice-rate") || "0.88")
+    };
   }
 
   openProfileManager() {
@@ -1331,7 +1463,7 @@ class HouChangApp {
 
   openVideoIdea() {
     this.showModal({
-      title: "视频通话功能设想",
+      title: "📹 一键视频求助",
       html: `
         <div class="share-card">
           <div class="share-summary-card">
@@ -1433,6 +1565,7 @@ class HouChangApp {
     document.getElementById("step-image").innerHTML = `<use href="#${step.image || "icon-check"}"/>`;
     this.currentUserImage = await this.loadCurrentStepImage();
     this.renderStepImageState(step);
+    this.renderStepVideo();
     this.renderStepRiskInfo();
     this.hideAssist();
     this.startSmartHelpTimers();
@@ -1508,6 +1641,81 @@ class HouChangApp {
     }
   }
 
+  getCurrentVideoKey() {
+    const step = this.getCurrentStep();
+    if (!step || !this.currentTask) return null;
+    return `video-${this.activeProfileId}-${this.currentTask.id}-step-${this.currentStepIndex}`;
+  }
+
+  async loadCurrentStepVideo() {
+    const key = this.getCurrentVideoKey();
+    if (!key || !this.imageStoreAvailable) return null;
+    try {
+      return await getStoredImage(key);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async handleVideoSelected(event) {
+    const [file] = event.target.files || [];
+    event.target.value = "";
+    if (!file) return;
+    if (!/^video\/(mp4|webm)$/.test(file.type)) {
+      this.infoModal("文件格式不支持", "请上传 MP4 或 WebM 格式的视频。");
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      this.infoModal("视频文件太大", "请上传小于 50MB 的视频。");
+      return;
+    }
+    try {
+      const videoUrl = URL.createObjectURL(file);
+      const video = document.getElementById("step-video");
+      if (video) {
+        video.src = videoUrl;
+        video.play().catch(() => {});
+      }
+      const removeBtn = document.getElementById("remove-video-btn");
+      if (removeBtn) removeBtn.style.display = "inline-block";
+      await setStoredImage(this.getCurrentVideoKey(), videoUrl);
+    } catch (error) {
+      this.infoModal("视频保存失败", "这段视频没有保存成功，你可以换一段再试。");
+    }
+  }
+
+  async removeCurrentStepVideo() {
+    const confirmed = await this.confirmModal("删除视频", "要删除这一步的视频教程吗？");
+    if (!confirmed) return;
+    try {
+      const video = document.getElementById("step-video");
+      if (video) video.src = "";
+      const removeBtn = document.getElementById("remove-video-btn");
+      if (removeBtn) removeBtn.style.display = "none";
+      if (this.imageStoreAvailable) {
+        await deleteStoredImage(this.getCurrentVideoKey());
+      }
+    } catch (error) {
+      this.infoModal("删除失败", "这段视频暂时没有删除成功。");
+    }
+  }
+
+  async renderStepVideo() {
+    const videoContainer = document.getElementById("video-container");
+    const video = document.getElementById("step-video");
+    const removeBtn = document.getElementById("remove-video-btn");
+    const videoUrl = await this.loadCurrentStepVideo();
+    if (videoUrl) {
+      videoContainer.style.display = "block";
+      video.src = videoUrl;
+      removeBtn.style.display = "inline-block";
+    } else {
+      videoContainer.style.display = "none";
+      video.src = "";
+      removeBtn.style.display = "none";
+    }
+  }
+
   showAssist(type) {
     const step = this.getCurrentStep();
     if (!step) return;
@@ -1548,9 +1756,10 @@ class HouChangApp {
   speak(text) {
     this.stopSpeaking();
     if (!this.synth || typeof window.SpeechSynthesisUtterance === "undefined") return;
+    const settings = this.getVoiceSettings();
     this.currentUtterance = new SpeechSynthesisUtterance(text);
-    this.currentUtterance.lang = "zh-CN";
-    this.currentUtterance.rate = 0.88;
+    this.currentUtterance.lang = settings.lang;
+    this.currentUtterance.rate = settings.rate;
     this.currentUtterance.pitch = 1;
     const voiceBtn = document.getElementById("voice-btn");
     voiceBtn.classList.add("speaking");
