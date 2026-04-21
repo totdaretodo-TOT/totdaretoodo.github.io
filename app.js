@@ -1757,7 +1757,7 @@ class HouChangApp {
 
   encodeHashPayload(prefix, payload) {
     const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-    const baseUrl = "https://totdaretodo-TOT.github.io/index.html";
+    const baseUrl = "https://totdaretodo-tot.github.io/totdaretoodo.github.io/index.html";
     return `${baseUrl}#${prefix}=${encoded}`;
   }
 
