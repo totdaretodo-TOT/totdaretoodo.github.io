@@ -512,6 +512,42 @@
           <ul class="step-risk-list" id="step-risk-list"></ul>
         </div>
 
+        <!-- 安全警告系统 -->
+        <div class="safety-panel hidden" id="safety-panel">
+          <div class="safety-header" id="safety-header">
+            <span class="safety-icon" id="safety-icon">⚠️</span>
+            <span class="safety-title" id="safety-title">安全提示</span>
+          </div>
+          <div class="safety-warning-text hidden" id="safety-warning-text"></div>
+          <div class="safety-tips-section hidden" id="safety-tips-section">
+            <p class="safety-subtitle">✅ 安全做法：</p>
+            <ul class="safety-tips-list" id="safety-tips-list"></ul>
+          </div>
+          <div class="safety-dont-section hidden" id="safety-dont-section">
+            <p class="safety-subtitle danger">🚫 禁止事项：</p>
+            <ul class="safety-dont-list" id="safety-dont-list"></ul>
+          </div>
+          <div class="safety-emergency-section hidden" id="safety-emergency-section">
+            <p class="safety-subtitle emergency">🆘 紧急处理：</p>
+            <p class="safety-emergency-text" id="safety-emergency-text"></p>
+          </div>
+        </div>
+
+        <!-- 步骤计时器 -->
+        <div class="timer-panel" id="timer-panel">
+          <div class="timer-header">
+            <span class="timer-label">⏱️ 步骤计时器</span>
+            <span class="timer-estimate hidden" id="timer-estimate">建议：2-5分钟</span>
+          </div>
+          <div class="timer-display">
+            <span class="timer-time" id="timer-time">00:00</span>
+            <span class="timer-status" id="timer-status">计时中...</span>
+          </div>
+          <div class="timer-warning hidden" id="timer-warning">
+            ⚠️ 这一步已经用了较长时间，如果遇到困难可以点击下方「我遇到了问题」
+          </div>
+        </div>
+
         <div class="image-panel">
           <p class="image-panel-title">参考图片</p>
           <p class="image-panel-text">你可以上传这一步的参考照片，方便以后照着做。</p>
@@ -544,12 +580,12 @@
         </div>
 
         <div class="help-section">
-          <p class="help-label">卡住了吗？试试这些：</p>
-          <div class="help-buttons">
-            <button class="btn btn-help" id="help-simplify">👉 再说简单一点</button>
-            <button class="btn btn-help" id="help-notfound">🔍 我没找到</button>
-            <button class="btn btn-help" id="help-need">🆘 我需要帮助</button>
-            <button class="btn btn-contact" id="contact-btn">📞 联系同事</button>
+          <p class="help-label">需要帮助？</p>
+          <div class="recovery-buttons">
+            <button class="btn btn-recovery" id="prev-step-btn">← 上一步</button>
+            <button class="btn btn-recovery btn-restart" id="restart-task-btn">� 从头开始</button>
+            <button class="btn btn-recovery btn-problem" id="problem-btn">❓ 遇到问题</button>
+            <button class="btn btn-calm" id="calm-open-btn">🧘 冷静一下</button>
           </div>
         </div>
 
@@ -557,6 +593,90 @@
           <p class="assist-title" id="assist-title">辅助提示</p>
           <div class="assist-content" id="assist-content"></div>
           <button class="btn btn-secondary" id="assist-close-btn">我知道了</button>
+        </div>
+
+        <!-- 职场沟通脚本 -->
+        <div class="communication-panel hidden" id="communication-panel">
+          <div class="communication-header">
+            <span>💬 职场话术助手</span>
+          </div>
+          <div class="communication-scenarios">
+            <button class="btn btn-comm-scenario" data-scenario="late">⏰ 迟到了</button>
+            <button class="btn btn-comm-scenario" data-scenario="dont-understand">❓ 不懂任务</button>
+            <button class="btn btn-comm-scenario" data-scenario="need-help">🤝 需要帮助</button>
+            <button class="btn btn-comm-scenario" data-scenario="unwell">🤒 身体不适</button>
+            <button class="btn btn-comm-scenario" data-scenario="criticized">😔 被批评</button>
+            <button class="btn btn-comm-scenario" data-scenario="finish-work">✅ 下班确认</button>
+            <button class="btn btn-comm-scenario" data-scenario="conflict">💢 同事冲突</button>
+            <button class="btn btn-comm-scenario" data-scenario="mistake">😅 做错了</button>
+          </div>
+          <div class="communication-scripts hidden" id="communication-scripts">
+            <p class="comm-script-title" id="comm-script-title"></p>
+            <div class="comm-script-content" id="comm-script-content"></div>
+            <div class="comm-script-actions">
+              <button class="btn btn-secondary" id="comm-copy-btn">📋 复制</button>
+              <button class="btn btn-primary" id="comm-speak-btn">🔊 朗读</button>
+            </div>
+          </div>
+          <button class="btn btn-secondary comm-close-btn" id="comm-close-btn">关闭</button>
+        </div>
+
+        <!-- 问题分类面板 -->
+        <div class="problem-panel hidden" id="problem-panel">
+          <p class="problem-title">请选择你遇到的问题：</p>
+          <div class="problem-options">
+            <button class="btn btn-problem-option" data-problem="wrong">😅 做错了，想重做这一步</button>
+            <button class="btn btn-problem-option" data-problem="notfound">🔍 找不到需要的工具/材料</button>
+            <button class="btn btn-problem-option" data-problem="confused">🤔 不理解这个步骤</button>
+            <button class="btn btn-problem-option" data-problem="accident">⚠️ 出现了意外情况</button>
+            <button class="btn btn-problem-option" data-problem="tired">😴 我需要休息一下</button>
+            <button class="btn btn-problem-option" data-problem="anxious">😰 我感到焦虑/紧张</button>
+            <div class="problem-divider"></div>
+            <button class="btn btn-problem-option problem-special" data-problem="comm">💬 不知道怎么说话（查看话术）</button>
+            <button class="btn btn-problem-option problem-special" data-problem="contact">📞 需要联系同事/主管</button>
+          </div>
+          <button class="btn btn-secondary problem-cancel-btn" id="problem-cancel-btn">取消</button>
+        </div>
+
+        <!-- 冷静模式/恐慌急救包 -->
+        <div class="calm-mode-overlay hidden" id="calm-mode-overlay">
+          <div class="calm-mode-card">
+            <div class="calm-header">
+              <span class="calm-icon">🧘</span>
+              <h2>冷静下来</h2>
+            </div>
+            <p class="calm-subtitle">深呼吸，慢慢来，没人催你</p>
+
+            <!-- 呼吸引导动画 -->
+            <div class="breathing-guide" id="breathing-guide">
+              <div class="breath-circle" id="breath-circle"></div>
+              <p class="breath-instruction" id="breath-instruction">准备开始...</p>
+            </div>
+
+            <!-- 正向自我对话 -->
+            <div class="positive-affirmations">
+              <p class="affirmation-label">对自己说：</p>
+              <div class="affirmation-cards" id="affirmation-cards">
+                <div class="affirmation-card active" id="affirmation-current">我可以的</div>
+              </div>
+              <button class="btn btn-secondary affirmation-next-btn" id="affirmation-next-btn">换一句 ➜</button>
+            </div>
+
+            <!-- 感官Grounding (5-4-3-2-1) -->
+            <div class="grounding-section hidden" id="grounding-section">
+              <p class="grounding-title">👀 看看周围，说出你看到的5样东西</p>
+              <div class="grounding-input">
+                <input type="text" id="grounding-input" placeholder="我看到..." class="grounding-field">
+                <button class="btn btn-primary grounding-add-btn" id="grounding-add-btn">添加</button>
+              </div>
+              <ul class="grounding-list" id="grounding-list"></ul>
+            </div>
+
+            <div class="calm-actions">
+              <button class="btn btn-primary calm-done-btn" id="calm-done-btn">✅ 我好多了，继续工作</button>
+              <button class="btn btn-contact calm-emergency-btn" id="calm-emergency-btn">🆘 我还是需要帮助</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -676,6 +796,76 @@
   </div>
 
   <input id="package-file-input" type="file" accept=".json,application/json" hidden>
+
+  <!-- 可视化任务编辑器 - 操作者视角模式 -->
+  <div class="task-editor-overlay hidden" id="task-editor-overlay">
+    <div class="task-editor-card">
+      <div class="task-editor-header">
+        <h2 id="task-editor-title">📝 编辑自定义任务</h2>
+        <button class="task-editor-close-btn" id="task-editor-close-btn">✕</button>
+      </div>
+
+      <div class="task-editor-body">
+        <!-- 任务基本信息（可点击编辑） -->
+        <div class="editor-task-info">
+          <div class="editable-field" data-field="title">
+            <span class="edit-icon">✏️</span>
+            <input type="text" id="editor-task-name" placeholder="点击输入任务名称..." class="editable-input">
+          </div>
+          <div class="editor-meta-row">
+            <select id="editor-task-category" class="editor-select-sm">
+              <option value="restaurant">🍽️ 餐厅</option>
+              <option value="snack">🍬 零食</option>
+              <option value="warehouse">📦 仓库</option>
+              <option value="carwash">🚗 洗车</option>
+            </select>
+            <button class="btn btn-secondary btn-xs" id="manage-categories-btn">⚙️ 分类</button>
+          </div>
+          <div class="editable-field small" data-field="desc">
+            <span class="edit-icon">✏️</span>
+            <input type="text" id="editor-task-desc" placeholder="点击输入任务说明..." class="editable-input">
+          </div>
+        </div>
+
+        <!-- 步骤列表（操作者视角样式） -->
+        <div class="editor-steps-container">
+          <div class="steps-toolbar">
+            <span class="step-count-label" id="step-count">(0 步)</span>
+            <button class="btn btn-primary btn-sm" id="add-step-btn">+ 添加步骤</button>
+          </div>
+
+          <div class="steps-list-wysiwyg" id="steps-list">
+            <!-- 动态生成步骤卡片（操作者视角） -->
+          </div>
+        </div>
+      </div>
+
+      <div class="task-editor-footer">
+        <button class="btn btn-secondary" id="editor-cancel-btn">取消</button>
+        <button class="btn btn-primary" id="editor-save-btn">💾 保存任务</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 分类管理弹窗 -->
+  <div class="category-manager-overlay hidden" id="category-manager-overlay">
+    <div class="category-manager-card">
+      <h3>管理自定义分类</h3>
+      <p class="category-note">除了系统自带的4个分类，你可以添加自己的分类。</p>
+
+      <div class="category-list" id="custom-category-list">
+        <!-- 动态生成 -->
+      </div>
+
+      <div class="add-category-form">
+        <input type="text" id="new-category-name" placeholder="新分类名称" class="editor-input">
+        <input type="text" id="new-category-icon" placeholder="图标（可选，如：🏪）" class="editor-input icon-input">
+        <button class="btn btn-primary btn-sm" id="add-category-btn">+ 添加分类</button>
+      </div>
+
+      <button class="btn btn-secondary category-manager-close-btn" id="category-manager-close-btn">关闭</button>
+    </div>
+  </div>
 
   <div class="modal-overlay hidden" id="modal-overlay">
       <div class="modal-card">

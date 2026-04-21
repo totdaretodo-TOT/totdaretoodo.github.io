@@ -1191,10 +1191,6 @@ class HouChangApp {
 
     document.getElementById("back-btn").addEventListener("click", () => this.goHome());
     document.getElementById("done-btn").addEventListener("click", () => this.completeStep());
-    document.getElementById("help-simplify").addEventListener("click", () => this.showAssist("simplify"));
-    document.getElementById("help-notfound").addEventListener("click", () => this.showAssist("notfound"));
-    document.getElementById("help-need").addEventListener("click", () => this.showAssist("need"));
-    document.getElementById("contact-btn").addEventListener("click", () => this.showContactList());
     document.getElementById("emergency-btn").addEventListener("click", () => this.handleEmergencyCall());
     document.getElementById("assist-close-btn").addEventListener("click", () => this.hideAssist());
     document.getElementById("restart-btn").addEventListener("click", () => this.restartTask());
@@ -1226,6 +1222,55 @@ class HouChangApp {
     document.getElementById("mode-toggle-btn").addEventListener("click", () => this.toggleDisplayMode());
     document.getElementById("voice-settings-btn").addEventListener("click", () => this.openVoiceSettings());
     document.getElementById("package-file-input").addEventListener("change", event => this.handleTeachingPackageFileSelected(event));
+
+    // 新增功能事件绑定
+    document.getElementById("prev-step-btn").addEventListener("click", () => this.goToPrevStep());
+    document.getElementById("restart-task-btn").addEventListener("click", () => this.confirmRestartTask());
+    document.getElementById("problem-btn").addEventListener("click", () => this.showProblemPanel());
+    document.getElementById("problem-cancel-btn").addEventListener("click", () => this.hideProblemPanel());
+    document.getElementById("comm-close-btn").addEventListener("click", () => this.hideCommunicationPanel());
+    document.getElementById("calm-open-btn").addEventListener("click", () => this.openCalmMode());
+    document.getElementById("calm-done-btn").addEventListener("click", () => this.closeCalmMode());
+    document.getElementById("calm-emergency-btn").addEventListener("click", () => {
+      this.closeCalmMode();
+      this.handleEmergencyCall();
+    });
+    document.getElementById("affirmation-next-btn").addEventListener("click", () => this.nextAffirmation());
+    document.getElementById("grounding-add-btn").addEventListener("click", () => this.addGroundingItem());
+    document.getElementById("comm-copy-btn").addEventListener("click", () => this.copyCommScript());
+    document.getElementById("comm-speak-btn").addEventListener("click", () => this.speakCommScript());
+
+    // 职场沟通场景按钮
+    document.querySelectorAll(".btn-comm-scenario").forEach(btn => {
+      btn.addEventListener("click", () => this.selectCommScenario(btn.dataset.scenario));
+    });
+
+    // 问题分类选项按钮
+    document.querySelectorAll(".btn-problem-option").forEach(btn => {
+      btn.addEventListener("click", () => this.handleProblemSelection(btn.dataset.problem));
+    });
+
+    // 点击遮罩层关闭弹窗
+    this.modalOverlay?.addEventListener("click", (e) => {
+      if (e.target === this.modalOverlay) {
+        this.closeModal();
+      }
+    });
+
+    // 可视化任务编辑器事件（操作者视角模式）
+    document.getElementById("task-editor-close-btn")?.addEventListener("click", () => this.closeTaskEditor());
+    document.getElementById("editor-cancel-btn")?.addEventListener("click", () => this.closeTaskEditor());
+    document.getElementById("editor-save-btn")?.addEventListener("click", () => this.saveTaskFromEditor());
+    document.getElementById("add-step-btn")?.addEventListener("click", () => this.addNewStep());
+
+    // 分类管理事件
+    document.getElementById("manage-categories-btn")?.addEventListener("click", () => this.openCategoryManager());
+    document.getElementById("category-manager-close-btn")?.addEventListener("click", () => this.closeCategoryManager());
+    document.getElementById("add-category-btn")?.addEventListener("click", () => this.addCustomCategory());
+    document.getElementById("custom-category-list")?.addEventListener("click", (e) => {
+      const deleteBtn = e.target.closest(".category-delete-btn");
+      if (deleteBtn) this.deleteCustomCategory(deleteBtn.dataset.id);
+    });
   }
 
   toggleDisplayMode() {
@@ -2201,6 +2246,7 @@ class HouChangApp {
             <div class="share-qr-fallback hidden">
               当前网络下二维码没有加载出来，你仍然可以复制下面的同步链接，或者直接下载 JSON 文件发送。
             </div>
+            <div class="share-qr-note">📌 此链接通过GitHub Pages托管，全球可访问，扫码即可同步。</div>
           </div>
           <div class="share-summary-card">
             <div class="profile-row-title">同步说明</div>
@@ -2314,6 +2360,7 @@ class HouChangApp {
             <div class="share-qr-fallback hidden">
               当前网络下二维码没有加载出来，你仍然可以直接复制下面的分享链接。
             </div>
+            <div class="share-qr-note">📌 此链接通过GitHub Pages托管，全球可访问，扫码即可查看。</div>
           </div>
           <div class="share-summary-card">
             <div class="profile-row-title">扫码说明</div>
@@ -2453,6 +2500,8 @@ class HouChangApp {
     this.renderStepImageState(step);
     this.renderStepVideo();
     this.renderStepRiskInfo();
+    this.renderSafetyPanel(step);
+    this.startStepTimer(step);
     this.hideAssist();
     this.startSmartHelpTimers();
     this.saveProgress();
@@ -2965,6 +3014,960 @@ class HouChangApp {
     }
     grid.innerHTML = html;
   }
+
+  // ========== 安全警告系统 ==========
+  renderSafetyPanel(step) {
+    const panel = document.getElementById("safety-panel");
+    const warningText = document.getElementById("safety-warning-text");
+    const tipsSection = document.getElementById("safety-tips-section");
+    const dontSection = document.getElementById("safety-dont-section");
+    const emergencySection = document.getElementById("safety-emergency-section");
+    const iconEl = document.getElementById("safety-icon");
+    const titleEl = document.getElementById("safety-title");
+
+    if (!step.safetyLevel || step.safetyLevel === "low") {
+      panel.classList.add("hidden");
+      return;
+    }
+
+    panel.classList.remove("hidden");
+    panel.classList.remove("safety-high");
+
+    if (step.safetyLevel === "high") {
+      panel.classList.add("safety-high");
+      iconEl.textContent = "🔴";
+      titleEl.textContent = "高度危险警示";
+    } else if (step.safetyLevel === "medium") {
+      iconEl.textContent = "⚠️";
+      titleEl.textContent = "安全提示";
+    } else {
+      iconEl.textContent = "ℹ️";
+      titleEl.textContent = "注意事项";
+    }
+
+    // 警告文字
+    if (step.safetyWarning) {
+      warningText.textContent = step.safetyWarning;
+      warningText.classList.remove("hidden");
+    } else {
+      warningText.classList.add("hidden");
+    }
+
+    // 安全做法
+    if (step.safetyTips && step.safetyTips.length > 0) {
+      document.getElementById("safety-tips-list").innerHTML =
+        step.safetyTips.map(tip => `<li>${escapeHtml(tip)}</li>`).join("");
+      tipsSection.classList.remove("hidden");
+    } else {
+      tipsSection.classList.add("hidden");
+    }
+
+    // 禁止事项
+    if (step.dontDoList && step.dontDoList.length > 0) {
+      document.getElementById("safety-dont-list").innerHTML =
+        step.dontDoList.map(item => `<li>${escapeHtml(item)}</li>`).join("");
+      dontSection.classList.remove("hidden");
+    } else {
+      dontSection.classList.add("hidden");
+    }
+
+    // 紧急处理指引
+    if (step.emergencyGuide) {
+      document.getElementById("safety-emergency-text").textContent = step.emergencyGuide;
+      emergencySection.classList.remove("hidden");
+    } else {
+      emergencySection.classList.add("hidden");
+    }
+  }
+
+  // ========== 步骤计时器 ==========
+  stepTimerInterval = null;
+  stepTimerSeconds = 0;
+
+  startStepTimer(step) {
+    this.stopStepTimer();
+    this.stepTimerSeconds = 0;
+    this.updateStepTimerDisplay();
+
+    const estimateEl = document.getElementById("timer-estimate");
+    const warningEl = document.getElementById("timer-warning");
+
+    if (step.estimatedTime) {
+      estimateEl.textContent = `建议：${step.estimatedTime.min}-${step.estimatedTime.max}分钟`;
+      estimateEl.classList.remove("hidden");
+    } else {
+      estimateEl.classList.add("hidden");
+    }
+    warningEl.classList.add("hidden");
+
+    this.stepTimerInterval = setInterval(() => {
+      this.stepTimerSeconds++;
+      this.updateStepTimerDisplay();
+
+      // 超时警告（超过建议时间的3倍）
+      if (step.estimatedTime && this.stepTimerSeconds > step.estimatedTime.max * 180) {
+        warningEl.classList.remove("hidden");
+      }
+    }, 1000);
+  }
+
+  stopStepTimer() {
+    if (this.stepTimerInterval) {
+      clearInterval(this.stepTimerInterval);
+      this.stepTimerInterval = null;
+    }
+  }
+
+  updateStepTimerDisplay() {
+    const minutes = Math.floor(this.stepTimerSeconds / 60);
+    const seconds = this.stepTimerSeconds % 60;
+    const timeStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    document.getElementById("timer-time").textContent = timeStr;
+    document.getElementById("timer-status").textContent = "计时中...";
+  }
+
+  // ========== 错误恢复机制 ==========
+  goToPrevStep() {
+    if (!this.currentTask || this.currentStepIndex <= 0) return;
+    this.stopStepTimer();
+    this.currentStepIndex--;
+    this.renderStep();
+    setTimeout(() => this.speakCurrentStep(), 200);
+  }
+
+  confirmRestartTask() {
+    this.confirmModal("重新开始", "确定要从头开始这个任务吗？当前进度会丢失。", "确认重做")
+      .then(confirmed => {
+        if (confirmed) this.restartTask();
+      });
+  }
+
+  showProblemPanel() {
+    document.getElementById("problem-panel").classList.remove("hidden");
+  }
+
+  hideProblemPanel() {
+    document.getElementById("problem-panel").classList.add("hidden");
+  }
+
+  handleProblemSelection(problemType) {
+    this.hideProblemPanel();
+
+    switch (problemType) {
+      case "wrong":
+        this.infoModal("没关系", "做错了可以重来，这一步我们会重新开始计时。");
+        this.currentStepIndex = Math.max(0, this.currentStepIndex - 1);
+        this.completeStep();
+        break;
+
+      case "notfound":
+        this.showAssist("notfound");
+        break;
+
+      case "confused":
+        this.showAssist("simplify");
+        setTimeout(() => this.showAssist("need"), 500);
+        break;
+
+      case "accident":
+        this.showModal({
+          title: "⚠️ 出现了意外情况",
+          message: "请先确保自己安全，然后：\n1. 如果有人受伤，立即呼叫帮助\n2. 如果只是物品问题，尝试清理或告知同事\n3. 不要慌张，慢慢来",
+          actions: [
+            { label: "我知道了", variant: "primary", onClick: () => {} },
+            { label: "📞 联系主管", variant: "secondary", onClick: () => this.handleEmergencyCall() }
+          ]
+        });
+        break;
+
+      case "tired":
+        this.showModal({
+          title: "😴 需要休息",
+          message: "累了就休息一下，这是很正常的。\n\n你可以：\n• 喝口水，走动一下\n• 深呼吸几次\n• 休息5-10分钟再继续\n\n任务进度已经保存了。",
+          actions: [
+            { label: "好的，我去休息", variant: "primary", onClick: () => {} },
+            { label: "🧘 冷静一下", variant: "secondary", onClick: () => this.openCalmMode() }
+          ]
+        });
+        break;
+
+      case "anxious":
+        this.openCalmMode();
+        break;
+
+      case "comm":
+        this.hideProblemPanel();
+        this.toggleCommunicationPanel();
+        break;
+
+      case "contact":
+        this.hideProblemPanel();
+        this.showContactList();
+        break;
+    }
+  }
+
+  // ========== 职场沟通脚本库 ==========
+  communicationScripts = {
+    late: {
+      title: "⏰ 迟到了怎么说",
+      scripts: [
+        "对不起，我今天迟到了X分钟，我会把时间补回来。",
+        "不好意思来晚了，路上有点堵，我现在就开始工作。"
+      ]
+    },
+    "dont-understand": {
+      title: "❓ 不懂任务时怎么问",
+      scripts: [
+        "请问这个任务具体要怎么做？可以再演示一遍吗？",
+        "我不太明白这一步，能帮我看看吗？"
+      ]
+    },
+    "need-help": {
+      title: "🤝 需要帮助时怎么表达",
+      scripts: [
+        "我现在在做XX，遇到了XX问题，能帮我看一下吗？",
+        "请问这一步应该怎么做？我不太确定。"
+      ]
+    },
+    unwell: {
+      title: "🤒 身体不适时怎么请假",
+      scripts: [
+        "我现在感觉不太舒服，可以去休息一会儿吗？",
+        "我今天身体有点不舒服，可能需要早一点离开，可以吗？"
+      ]
+    },
+    criticized: {
+      title: "😔 被批评时怎么回应",
+      scripts: [
+        "好的，我记住了，下次我会注意XX。",
+        "谢谢您的提醒，我会改进的。"
+      ]
+    },
+    "finish-work": {
+      title: "✅ 下班前怎么确认",
+      scripts: [
+        "今天的任务都完成了吗？还有需要我做的吗？",
+        "我已经完成了XX工作，现在可以下班了吗？"
+      ]
+    },
+    conflict: {
+      title: "💢 同事冲突时怎么沟通",
+      scripts: [
+        "刚才那个情况让我有点困扰，我们可以聊聊吗？",
+        "我觉得我们在XX上有些分歧，能找个时间谈谈吗？"
+      ]
+    },
+    mistake: {
+      title: "😅 做错了事怎么道歉",
+      scripts: [
+        "对不起，是我弄错了，我会马上改正。",
+        "抱歉给您添麻烦了，下次我会注意的。"
+      ]
+    }
+  };
+
+  currentCommScenario = null;
+  currentCommScriptIndex = 0;
+
+  toggleCommunicationPanel() {
+    const panel = document.getElementById("communication-panel");
+    panel.classList.toggle("hidden");
+    if (!panel.classList.contains("hidden")) {
+      document.getElementById("communication-scripts").classList.add("hidden");
+    }
+  }
+
+  hideCommunicationPanel() {
+    document.getElementById("communication-panel").classList.add("hidden");
+    document.getElementById("communication-scripts").classList.add("hidden");
+  }
+
+  selectCommScenario(scenario) {
+    this.currentCommScenario = scenario;
+    this.currentCommScriptIndex = 0;
+
+    const data = this.communicationScripts[scenario];
+    if (!data) return;
+
+    document.querySelectorAll(".btn-comm-scenario").forEach(btn => btn.classList.remove("active"));
+    document.querySelector(`[data-scenario="${scenario}"]`)?.classList.add("active");
+
+    document.getElementById("comm-script-title").textContent = data.title;
+    this.updateCommScriptContent();
+
+    document.getElementById("communication-scripts").classList.remove("hidden");
+  }
+
+  updateCommScriptContent() {
+    if (!this.currentCommScenario) return;
+    const data = this.communicationScripts[this.currentCommScenario];
+    const script = data.scripts[this.currentCommScriptIndex] || data.scripts[0];
+    document.getElementById("comm-script-content").textContent = script;
+  }
+
+  copyCommScript() {
+    const content = document.getElementById("comm-script-content").textContent;
+    navigator.clipboard.writeText(content).then(() => {
+      this.infoModal("已复制", "话术已复制到剪贴板，可以直接粘贴使用。");
+    }).catch(() => {
+      this.infoModal("复制失败", "请手动选择文字复制。");
+    });
+  }
+
+  speakCommScript() {
+    const content = document.getElementById("comm-script-content").textContent;
+    this.speak(content);
+  }
+
+  // ========== 冷静模式/恐慌急救包 ==========
+  affirmations = [
+    "我可以的",
+    "慢慢来，没人催我",
+    "深呼吸，我能做到",
+    "这只是一小步",
+    "我很勇敢",
+    "我可以寻求帮助",
+    "一切都会好起来的",
+    "我相信自己"
+  ];
+  currentAffirmationIndex = 0;
+  groundingItems = [];
+  breathingAnimationInterval = null;
+
+  openCalmMode() {
+    const overlay = document.getElementById("calm-mode-overlay");
+    overlay.classList.remove("hidden");
+    this.startBreathingAnimation();
+    this.showAffirmation();
+    this.groundingItems = [];
+    document.getElementById("grounding-list").innerHTML = "";
+    document.getElementById("grounding-input").value = "";
+  }
+
+  closeCalmMode() {
+    document.getElementById("calm-mode-overlay").classList.add("hidden");
+    this.stopBreathingAnimation();
+  }
+
+  startBreathingAnimation() {
+    this.stopBreathingAnimation();
+    let phase = 0;
+    const instructions = ["吸气...", "屏住呼吸...", "呼气...", "放松..."];
+    const instructionEl = document.getElementById("breath-instruction");
+
+    this.breathingAnimationInterval = setInterval(() => {
+      instructionEl.textContent = instructions[phase];
+      phase = (phase + 1) % 4;
+    }, 2000);
+
+    instructionEl.textContent = instructions[0];
+  }
+
+  stopBreathingAnimation() {
+    if (this.breathingAnimationInterval) {
+      clearInterval(this.breathingAnimationInterval);
+      this.breathingAnimationInterval = null;
+    }
+  }
+
+  showAffirmation() {
+    const affirmation = this.affirmations[this.currentAffirmationIndex];
+    const card = document.getElementById("affirmation-current");
+    card.style.animation = "none";
+    card.offsetHeight;
+    card.style.animation = "affirmation-fade 0.5s ease";
+    card.textContent = affirmation;
+  }
+
+  nextAffirmation() {
+    this.currentAffirmationIndex = (this.currentAffirmationIndex + 1) % this.affirmations.length;
+    this.showAffirmation();
+  }
+
+  addGroundingItem() {
+    const input = document.getElementById("grounding-input");
+    const value = input.value.trim();
+    if (!value) return;
+
+    this.groundingItems.push(value);
+    const list = document.getElementById("grounding-list");
+    const li = document.createElement("li");
+    li.textContent = value;
+    list.appendChild(li);
+
+    input.value = "";
+
+    if (this.groundingItems.length >= 5) {
+      document.getElementById("grounding-section").querySelector(".grounding-title")
+        .textContent = "✅ 很好！你现在已经回到当下，感觉怎么样？";
+    }
+  }
+
+  // ========== 可视化任务编辑器 ==========
+  editorCurrentTaskId = null;
+  editorSteps = [];
+  editingStepIndex = -1;
+
+  openCustomTaskBuilder(taskId = null) {
+    const task = taskId ? this.customTasks.find(item => item.id === taskId) : null;
+
+    this.editorCurrentTaskId = taskId || null;
+    this.editorSteps = task ? JSON.parse(JSON.stringify(task.steps)) : [];
+
+    document.getElementById("task-editor-title").textContent = task ? "编辑自定义任务" : "新建自定义任务";
+    document.getElementById("editor-task-name").value = task?.title || "";
+    document.getElementById("editor-task-desc").value = task?.description || "";
+    this.populateCategorySelect();
+    if (task) {
+      document.getElementById("editor-task-category").value = task.category;
+    }
+
+    this.renderStepsList();
+    this.updateStepCount();
+
+    document.getElementById("task-editor-overlay").classList.remove("hidden");
+  }
+
+  closeTaskEditor() {
+    document.getElementById("task-editor-overlay").classList.add("hidden");
+    this.editorSteps = [];
+    this.editorCurrentTaskId = null;
+    this.editingStepIndex = -1;
+  }
+
+  populateCategorySelect() {
+    const select = document.getElementById("editor-task-category");
+    const customCategories = getCustomCategories();
+
+    select.innerHTML = `
+      <option value="restaurant">🍽️ 餐厅</option>
+      <option value="snack">🍬 零食</option>
+      <option value="warehouse">📦 仓库</option>
+      <option value="carwash">🚗 洗车</option>
+      ${customCategories.map(cat => `<option value="${cat.id}">${cat.icon || '📁'} ${escapeHtml(cat.name)}</option>`).join('')}
+    `;
+  }
+
+  renderStepsList() {
+    const list = document.getElementById("steps-list");
+
+    if (this.editorSteps.length === 0) {
+      list.innerHTML = `
+        <div class="empty-steps-hint">
+          <span class="hint-icon">📝</span>
+          <p>还没有步骤</p>
+          <p style="font-size: 13px;">点击上方"+ 添加步骤"开始创建</p>
+        </div>
+      `;
+      return;
+    }
+
+    list.innerHTML = this.editorSteps.map((step, index) => `
+      <div class="wysiwyg-step-card" data-index="${index}" draggable="true">
+        <div class="wysiwyg-step-header">
+          <div class="wysiwyg-step-number">
+            步骤 <span class="num-badge">${index + 1}</span>
+          </div>
+          <div class="wysiwyg-step-tools">
+            <button class="wysiwyg-tool-btn" data-action="move-up" data-index="${index}" title="上移">⬆️</button>
+            <button class="wysiwyg-tool-btn" data-action="move-down" data-index="${index}" title="下移">⬇️</button>
+            <button class="wysiwyg-tool-btn danger" data-action="delete" data-index="${index}" title="删除步骤">🗑️</button>
+          </div>
+        </div>
+
+        <div class="wysiwyg-step-body">
+          <!-- 步骤指令（主文字，大字显示） -->
+          <div class="wysiwyg-instruction">
+            <input type="text"
+                   data-field="instruction"
+                   data-index="${index}"
+                   placeholder="✏️ 点击输入步骤指令..."
+                   value="${escapeHtml(step.instruction || "")}">
+          </div>
+
+          <!-- 详细说明 -->
+          <div class="wysiwyg-detail">
+            <textarea data-field="detail"
+                      data-index="${index}"
+                      placeholder="✏️ 详细说明（操作者看到的补充信息）...">${escapeHtml(step.detail || "")}</textarea>
+          </div>
+
+          <!-- 简单说法 -->
+          <div class="wysiwyg-simplify">
+            <span class="simplify-label">💬</span>
+            <input type="text"
+                   data-field="simplify"
+                   data-index="${index}"
+                   placeholder="更简单的说法..."
+                   value="${escapeHtml(step.simplify || "")}">
+          </div>
+
+          <!-- 图片/视频上传区域 -->
+          <div class="wysiwyg-media">
+            <div class="media-upload-area ${step.userImageKey ? 'has-media' : ''}" 
+                 data-type="image" data-index="${index}">
+              ${step.userImageKey ? `
+                <img src="" alt="步骤图片" data-preview="image-${index}">
+                <button class="media-remove-btn" data-remove="image" data-index="${index}">✕</button>
+                <div class="media-change-hint">点击更换图片</div>
+              ` : `
+                <div class="media-placeholder">
+                  <span class="icon">🖼️</span>
+                  <span class="text">上传图片</span>
+                </div>
+              `}
+              <input type="file" accept="image/*" hidden data-file-input="image" data-index="${index}">
+            </div>
+
+            <div class="media-upload-area ${step.videoUrl ? 'has-media' : ''}"
+                 data-type="video" data-index="${index}">
+              ${step.videoUrl ? `
+                <video src="${escapeHtml(step.videoUrl)}" muted data-preview="video-${index}"></video>
+                <button class="media-remove-btn" data-remove="video" data-index="${index}">✕</button>
+                <div class="media-change-hint">点击更换视频</div>
+              ` : `
+                <div class="media-placeholder">
+                  <span class="icon">🎬</span>
+                  <span class="text">添加视频链接</span>
+                </div>
+              `}
+            </div>
+          </div>
+
+          <!-- 更多选项（折叠） -->
+          <div class="wysiwyg-more-options">
+            <button class="wysiwyg-more-toggle" data-toggle-more="${index}">
+              ⚙️ 更多设置（安全等级、时间等）
+            </button>
+            <div class="wysiwyg-more-content" id="more-content-${index}">
+              <div class="wysiwyg-field-group">
+                <label>安全等级</label>
+                <select data-field="safetyLevel" data-index="${index}">
+                  <option value="low" ${step.safetyLevel === 'low' ? 'selected' : ''}>✅ 低风险</option>
+                  <option value="medium" ${step.safetyLevel === 'medium' ? 'selected' : ''}>⚠️ 中等风险</option>
+                  <option value="high" ${step.safetyLevel === 'high' ? 'selected' : ''}>🔴 高风险</option>
+                </select>
+              </div>
+              <div class="wysiwyg-field-group">
+                <label>预计时间（分钟）</label>
+                <input type="number" data-field="timeMin" data-index="${index}" 
+                       value="${step.estimatedTime?.min || 2}" min="1" max="60" placeholder="最小">
+              </div>
+              <div class="wysiwyg-field-group">
+                <label>找不到时提示</label>
+                <input type="text" data-field="helpNotFound" data-index="${index}"
+                       placeholder="用；分隔多条" 
+                       value="${Array.isArray(step.helpNotFound) ? step.helpNotFound.join('；') : (step.helpNotFound || '')}">
+              </div>
+              <div class="wysiwyg-field-group">
+                <label>需要帮助时话术</label>
+                <input type="text" data-field="helpNeed" data-index="${index}"
+                       placeholder="用；分隔多条"
+                       value="${Array.isArray(step.helpNeed) ? step.helpNeed.join('；') : (step.helpNeed || '')}">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    this.initWysiwygEvents();
+    this.loadStepImages();
+  }
+
+  initWysiwygEvents() {
+    const list = document.getElementById("steps-list");
+
+    // 文本输入实时保存
+    list.querySelectorAll('input[data-field], textarea[data-field], select[data-field]').forEach(el => {
+      el.addEventListener("input", (e) => {
+        const index = parseInt(e.target.dataset.index);
+        const field = e.target.dataset.field;
+        this.updateStepField(index, field, e.target.value);
+      });
+      el.addEventListener("change", (e) => {
+        const index = parseInt(e.target.dataset.index);
+        const field = e.target.dataset.field;
+        this.updateStepField(index, field, e.target.value);
+      });
+    });
+
+    // 工具按钮
+    list.querySelectorAll('.wysiwyg-tool-btn').forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const action = btn.dataset.action;
+        const index = parseInt(btn.dataset.index);
+        if (action === "delete") this.deleteStep(index);
+        if (action === "move-up") this.moveStep(index, -1);
+        if (action === "move-down") this.moveStep(index, 1);
+      });
+    });
+
+    // 折叠更多选项
+    list.querySelectorAll('.wysiwyg-more-toggle').forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const index = btn.dataset.toggleMore;
+        const content = document.getElementById(`more-content-${index}`);
+        content.classList.toggle("show");
+        btn.textContent = content.classList.contains("show") 
+          ? "▲ 收起设置" 
+          : "⚙️ 更多设置（安全等级、时间等）";
+      });
+    });
+
+    // 图片上传
+    list.querySelectorAll('.media-upload-area[data-type="image"]').forEach(area => {
+      area.addEventListener("click", (e) => {
+        if (e.target.closest(".media-remove-btn")) return;
+        const fileInput = area.querySelector('[data-file-input]');
+        fileInput.click();
+      });
+      const fileInput = area.querySelector('[data-file-input]');
+      fileInput.addEventListener("change", (e) => {
+        const index = parseInt(fileInput.dataset.index);
+        if (e.target.files[0]) {
+          this.uploadStepImage(index, e.target.files[0]);
+        }
+      });
+    });
+
+    // 删除图片/视频
+    list.querySelectorAll('.media-remove-btn').forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const type = btn.dataset.remove;
+        const index = parseInt(btn.dataset.index);
+        if (type === "image") this.removeStepImage(index);
+        if (type === "video") this.removeStepVideo(index);
+      });
+    });
+
+    // 视频链接输入
+    list.querySelectorAll('.media-upload-area[data-type="video"]').forEach(area => {
+      if (!area.querySelector('video')) {
+        area.addEventListener("click", () => {
+          const url = prompt("请输入视频URL：");
+          if (url && url.trim()) {
+            const index = parseInt(area.dataset.index);
+            this.updateStepField(index, "videoUrl", url.trim());
+            this.renderStepsList();
+          }
+        });
+      } else {
+        area.addEventListener("click", () => {
+          const index = parseInt(area.dataset.index);
+          const newUrl = prompt("修改视频URL：", this.editorSteps[index].videoUrl);
+          if (newUrl !== null) {
+            this.updateStepField(index, "videoUrl", newUrl.trim() || "");
+            this.renderStepsList();
+          }
+        });
+      }
+    });
+
+    // 拖拽排序
+    this.initDragAndDrop();
+  }
+
+  updateStepField(index, field, value) {
+    if (!this.editorSteps[index]) return;
+    const step = this.editorSteps[index];
+
+    switch(field) {
+      case "instruction":
+        step.instruction = value;
+        break;
+      case "detail":
+        step.detail = value;
+        break;
+      case "simplify":
+        step.simplify = value;
+        break;
+      case "safetyLevel":
+        step.safetyLevel = value;
+        break;
+      case "helpNotFound":
+        step.helpNotFound = value ? value.split("；").map(s => s.trim()).filter(Boolean) : [];
+        break;
+      case "helpNeed":
+        step.helpNeed = value ? value.split("；").map(s => s.trim()).filter(Boolean) : [];
+        break;
+      case "timeMin":
+        const minVal = parseInt(value) || 2;
+        step.estimatedTime = { min: minVal, max: Math.max(minVal, step.estimatedTime?.max || 5) };
+        break;
+      default:
+        step[field] = value;
+    }
+  }
+
+  async uploadStepImage(index, file) {
+    try {
+      const key = `editor-temp-${Date.now()}`;
+      await this.storeImageToIndexedDB(key, file);
+      const url = await this.getImageFromIndexedDB(key);
+
+      this.editorSteps[index].userImageKey = key;
+
+      const img = document.querySelector(`[data-preview="image-${index}"]`);
+      if (img) img.src = url;
+
+      const area = document.querySelector(`.media-upload-area[data-type="image"][data-index="${index}"]`);
+      if (area) area.classList.add("has-media");
+
+      this.renderStepsList();
+    } catch (error) {
+      alert("图片上传失败：" + error.message);
+    }
+  }
+
+  removeStepImage(index) {
+    this.editorSteps[index].userImageKey = "";
+    this.renderStepsList();
+  }
+
+  removeStepVideo(index) {
+    this.editorSteps[index].videoUrl = "";
+    this.renderStepsList();
+  }
+
+  async loadStepImages() {
+    for (let i = 0; i < this.editorSteps.length; i++) {
+      const step = this.editorSteps[i];
+      if (step.userImageKey) {
+        try {
+          const url = await this.getImageFromIndexedDB(step.userImageKey);
+          const img = document.querySelector(`[data-preview="image-${i}"]`);
+          if (img) img.src = url;
+        } catch (error) {}
+      }
+    }
+  }
+
+  moveStep(index, direction) {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= this.editorSteps.length) return;
+
+    [this.editorSteps[index], this.editorSteps[newIndex]] = [this.editorSteps[newIndex], this.editorSteps[index]];
+    this.renderStepsList();
+  }
+
+  initDragAndDrop() {
+    const stepsList = document.getElementById("steps-list");
+    let draggedItem = null;
+
+    stepsList.querySelectorAll(".wysiwyg-step-card").forEach(item => {
+      item.addEventListener("dragstart", (e) => {
+        draggedItem = item;
+        setTimeout(() => item.classList.add("dragging"), 0);
+      });
+
+      item.addEventListener("dragend", () => {
+        item.classList.remove("dragging");
+        draggedItem = null;
+      });
+
+      item.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        const afterElement = this.getDragAfterElement(stepsList, e.clientY);
+        if (afterElement == null) {
+          stepsList.appendChild(draggedItem);
+        } else {
+          stepsList.insertBefore(draggedItem, afterElement);
+        }
+      });
+
+      item.addEventListener("drop", () => {
+        const allItems = [...stepsList.querySelectorAll(".wysiwyg-step-card")];
+        const newOrder = allItems.map(el => parseInt(el.dataset.index));
+        const newSteps = newOrder.map(idx => this.editorSteps[idx]);
+        this.editorSteps = newSteps;
+        this.renderStepsList();
+      });
+    });
+  }
+
+  getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll(".wysiwyg-step-card:not(.dragging)")];
+    return draggableElements.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset: offset, element: child };
+      } else {
+        return closest;
+      }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }
+
+  updateStepCount() {
+    document.getElementById("step-count").textContent = `(${this.editorSteps.length} 步)`;
+  }
+
+  addNewStep() {
+    const newStep = {
+      instruction: "",
+      detail: "",
+      simplify: "",
+      whyItMatters: "",
+      image: "icon-check",
+      userImageKey: "",
+      videoUrl: "",
+      safetyLevel: "low",
+      safetyWarning: "",
+      safetyTips: [],
+      dontDoList: [],
+      emergencyGuide: "",
+      helpNotFound: [],
+      helpNeed: [],
+      estimatedTime: { min: 2, max: 5 }
+    };
+
+    this.editorSteps.push(newStep);
+    this.renderStepsList();
+    this.updateStepCount();
+
+    setTimeout(() => {
+      const list = document.getElementById("steps-list");
+      const lastCard = list.querySelector(".wysiwyg-step-card:last-child");
+      if (lastCard) {
+        lastCard.scrollIntoView({ behavior: "smooth", block: "center" });
+        const input = lastCard.querySelector('input[data-field="instruction"]');
+        if (input) input.focus();
+      }
+    }, 100);
+  }
+
+  deleteStep(index) {
+    if (!confirm(`确定删除第 ${index + 1} 步吗？`)) return;
+    this.editorSteps.splice(index, 1);
+    this.renderStepsList();
+    this.updateStepCount();
+  }
+
+  saveTaskFromEditor() {
+    const title = document.getElementById("editor-task-name").value.trim();
+    const category = document.getElementById("editor-task-category").value;
+    const description = document.getElementById("editor-task-desc").value.trim() || "这是带教人员为当前使用者定制的任务。";
+
+    if (!title) {
+      alert("请填写任务名称！");
+      return;
+    }
+
+    if (this.editorSteps.length === 0) {
+      alert("至少需要添加一个步骤！");
+      return;
+    }
+
+    for (let i = 0; i < this.editorSteps.length; i++) {
+      if (!this.editorSteps[i].instruction) {
+        alert(`第 ${i + 1} 步的步骤指令未填写！`);
+        const input = document.querySelector(`input[data-field="instruction"][data-index="${i}"]`);
+        if (input) { input.focus(); input.scrollIntoView({ behavior: "smooth" }); }
+        return;
+      }
+    }
+
+    const existingTask = this.editorCurrentTaskId ? this.customTasks.find(t => t.id === this.editorCurrentTaskId) : null;
+    const customTaskId = existingTask?.id || this.generateLocalId("custom");
+
+    const stepsWithKeys = this.editorSteps.map((step, index) => ({
+      ...step,
+      userImageKey: step.userImageKey || `${customTaskId}-step-${index}`
+    }));
+
+    const record = this.buildCustomTaskRecord({
+      id: customTaskId,
+      title,
+      category,
+      description,
+      steps: stepsWithKeys,
+      icon: existingTask?.icon || CUSTOM_TASK_ICON_MAP[category] || "📋"
+    });
+
+    if (existingTask) {
+      const index = this.customTasks.findIndex(t => t.id === customTaskId);
+      this.customTasks.splice(index, 1, record);
+      if (this.currentTask?.id === customTaskId) {
+        this.currentTask = record;
+      }
+    } else {
+      this.customTasks.unshift(record);
+    }
+
+    this.saveAndRefreshCustomTasks();
+    this.closeTaskEditor();
+    this.infoModal(existingTask ? "任务已更新" : "任务已保存", existingTask ? "这个自定义任务已经更新。" : "这个自定义任务已经加入列表。");
+  }
+
+  // ========== 分类管理 ==========
+  openCategoryManager() {
+    this.renderCustomCategoryList();
+    document.getElementById("category-manager-overlay").classList.remove("hidden");
+  }
+
+  closeCategoryManager() {
+    document.getElementById("category-manager-overlay").classList.add("hidden");
+  }
+
+  renderCustomCategoryList() {
+    const list = document.getElementById("custom-category-list");
+    const categories = getCustomCategories();
+
+    if (categories.length === 0) {
+      list.innerHTML = '<p style="color: #9ca3af; text-align: center; padding: 20px 0;">还没有自定义分类</p>';
+      return;
+    }
+
+    list.innerHTML = categories.map(cat => `
+      <div class="category-item" data-id="${cat.id}">
+        <span class="category-item-name">${cat.icon || '📁'} ${escapeHtml(cat.name)}</span>
+        <button class="category-delete-btn" data-id="${cat.id}" title="删除此分类">✕</button>
+      </div>
+    `).join('');
+  }
+
+  addCustomCategory() {
+    const nameInput = document.getElementById("new-category-name");
+    const iconInput = document.getElementById("new-category-icon");
+    const name = nameInput.value.trim();
+    const icon = iconInput.value.trim() || "📁";
+
+    if (!name) {
+      alert("请填写分类名称！");
+      return;
+    }
+
+    const id = name.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]/g, "-") + "-" + Date.now();
+    const categories = getCustomCategories();
+
+    if (categories.some(c => c.name === name)) {
+      alert("该分类名称已存在！");
+      return;
+    }
+
+    categories.push({ id, name, icon });
+    saveCustomCategories(categories);
+
+    nameInput.value = "";
+    iconInput.value = "";
+
+    this.renderCustomCategoryList();
+    this.populateCategorySelect();
+  }
+
+  deleteCustomCategory(id) {
+    if (!confirm("确定删除这个分类吗？")) return;
+    let categories = getCustomCategories();
+    categories = categories.filter(c => c.id !== id);
+    saveCustomCategories(categories);
+    this.renderCustomCategoryList();
+    this.populateCategorySelect();
+  }
+
 }
 
 document.addEventListener("DOMContentLoaded", () => {
