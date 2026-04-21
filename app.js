@@ -19,6 +19,19 @@ const rewardMessages = {
 
 const IMAGE_DB_NAME = "houchang-image-db";
 const IMAGE_STORE_NAME = "stepImages";
+const TEACHING_PACKAGE_VERSION = 1;
+const CUSTOM_TASK_ICON_MAP = {
+  restaurant: "🍽️",
+  snack: "🍬",
+  warehouse: "📦",
+  carwash: "🚗"
+};
+const CUSTOM_TASK_IMAGE_MAP = {
+  restaurant: "icon-wipe",
+  snack: "icon-shelf",
+  warehouse: "icon-box",
+  carwash: "icon-hose"
+};
 
 let audioContext;
 
@@ -192,7 +205,7 @@ class HouChangApp {
     this.updateStreakBadge();
     this.updateResumeCard();
     this.promptResumeIfNeeded();
-    this.showSharedViewIfNeeded();
+    this.showIncomingHashViewIfNeeded();
   }
 
   async checkPrivacyAgreement() {
@@ -292,9 +305,34 @@ class HouChangApp {
     return `${base}-${this.activeProfileId}`;
   }
 
+  getPreferenceKey(name) {
+    return this.getScopedKey(`houchang-pref-${name}`);
+  }
+
+  loadScopedPreference(name, legacyKey, defaultValue) {
+    const scopedKey = this.getPreferenceKey(name);
+    const scopedValue = localStorage.getItem(scopedKey);
+    if (scopedValue !== null) return scopedValue;
+
+    if (legacyKey) {
+      const legacyValue = localStorage.getItem(legacyKey);
+      if (legacyValue !== null) {
+        localStorage.setItem(scopedKey, legacyValue);
+        return legacyValue;
+      }
+    }
+
+    return defaultValue;
+  }
+
+  saveScopedPreference(name, value) {
+    localStorage.setItem(this.getPreferenceKey(name), String(value));
+  }
+
   reloadProfileScopedData() {
     this.stats = this.loadStats();
     this.customTasks = this.loadCustomTasks();
+    this.contacts = this.loadContacts();
   }
 
   loadStats() {
@@ -385,8 +423,21 @@ class HouChangApp {
 
   loadContacts() {
     try {
-      const saved = localStorage.getItem("houchang-contacts");
-      if (saved) return JSON.parse(saved);
+      const scopedKey = this.getScopedKey("houchang-contacts");
+      const saved = localStorage.getItem(scopedKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+
+      const legacy = localStorage.getItem("houchang-contacts");
+      if (legacy) {
+        const parsed = JSON.parse(legacy);
+        if (Array.isArray(parsed)) {
+          localStorage.setItem(scopedKey, JSON.stringify(parsed));
+          return parsed;
+        }
+      }
     } catch (error) {}
     return [
       { id: "c1", name: "值班主管", phone: "138-0000-0001", role: "主管" },
@@ -396,28 +447,41 @@ class HouChangApp {
   }
 
   saveContacts() {
-    localStorage.setItem("houchang-contacts", JSON.stringify(this.contacts));
+    localStorage.setItem(this.getScopedKey("houchang-contacts"), JSON.stringify(this.contacts));
   }
 
   showContactList() {
+    const hasContacts = this.contacts.length > 0;
     const html = `
       <div class="contact-list">
-        ${this.contacts.map(c => `
+        ${hasContacts ? this.contacts.map((c, index) => `
           <div class="contact-row">
             <div class="contact-info">
-              <div class="contact-name">${escapeHtml(c.name)} <span class="contact-role">${escapeHtml(c.role)}</span></div>
+              <div class="contact-name">
+                ${escapeHtml(c.name)}
+                <span class="contact-role">${escapeHtml(c.role)}</span>
+                ${index === 0 ? '<span class="contact-role contact-role-primary">紧急联系人</span>' : ""}
+              </div>
               <div class="contact-phone">${escapeHtml(c.phone)}</div>
             </div>
             <button class="btn btn-contact-action" data-phone="${escapeHtml(c.phone)}">拨打电话</button>
           </div>
-        `).join("")}
+        `).join("") : `
+          <div class="contact-empty">
+            <p>当前使用者还没有联系人。</p>
+            <p>先添加 1 位带教老师、主管或同事，紧急求助时就能直接拨号。</p>
+          </div>
+        `}
       </div>
-      <p class="inline-note" style="margin-top:16px;text-align:center;">联系人可以在设置中修改。</p>
+      <p class="inline-note" style="margin-top:16px;text-align:center;">联系人按当前使用者单独保存，排在第一位的会作为“紧急求助”默认联系人。</p>
     `;
     this.showModal({
       title: "📞 联系同事",
       html,
-      actions: [{ label: "关闭", variant: "secondary", onClick: () => {} }],
+      actions: [
+        { label: "关闭", variant: "secondary", onClick: () => {} },
+        { label: "管理联系人", variant: "primary", onClick: () => this.openContactManager() }
+      ],
       afterRender: () => {
         document.querySelectorAll(".contact-row .btn-contact-action").forEach(btn => {
           btn.addEventListener("click", () => {
@@ -441,6 +505,125 @@ class HouChangApp {
     } else {
       this.infoModal("未设置联系人", "请先在设置中添加紧急联系人。\n\n点击右上角「当前使用者」→「管理联系人」来添加。");
     }
+  }
+
+  openContactManager() {
+    const html = `
+      <div class="contact-list">
+        ${this.contacts.length ? this.contacts.map((contact, index) => `
+          <div class="contact-row contact-editor-row">
+            <div class="contact-info">
+              <div class="contact-name">
+                ${escapeHtml(contact.name)}
+                <span class="contact-role">${escapeHtml(contact.role || "同事")}</span>
+                ${index === 0 ? '<span class="contact-role contact-role-primary">紧急联系人</span>' : ""}
+              </div>
+              <div class="contact-phone">${escapeHtml(contact.phone)}</div>
+            </div>
+            <div class="contact-row-actions">
+              <button class="btn btn-secondary btn-contact-manage" data-action="call" data-contact-id="${escapeHtml(contact.id)}">拨打</button>
+              ${index === 0 ? "" : `<button class="btn btn-secondary btn-contact-manage" data-action="promote" data-contact-id="${escapeHtml(contact.id)}">设为紧急</button>`}
+              <button class="btn btn-danger-soft btn-contact-manage" data-action="delete" data-contact-id="${escapeHtml(contact.id)}">删除</button>
+            </div>
+          </div>
+        `).join("") : `
+          <div class="contact-empty">
+            <p>还没有联系人。</p>
+            <p>建议先添加 1 位主管、带教老师或同事，方便需要时直接求助。</p>
+          </div>
+        `}
+      </div>
+
+      <div class="profile-row contact-form-card">
+        <span class="field-label">新增联系人</span>
+        <input id="contact-name-input" type="text" placeholder="例如：张老师 / 值班主管">
+        <input id="contact-role-input" type="text" placeholder="例如：带教 / 主管 / 同事">
+        <input id="contact-phone-input" type="tel" placeholder="例如：13800000000">
+        <p class="inline-note">排在第一位的联系人会作为“紧急求助”默认拨号对象。</p>
+      </div>
+    `;
+
+    this.showModal({
+      title: `管理联系人 · ${this.getActiveProfile().name}`,
+      html,
+      actions: [
+        { label: "返回", variant: "secondary", onClick: () => this.openProfileManager() },
+        { label: "添加联系人", variant: "primary", keepOpen: true, onClick: () => this.addContactFromModal() }
+      ],
+      afterRender: () => {
+        document.querySelectorAll(".btn-contact-manage").forEach(button => {
+          button.addEventListener("click", async () => {
+            const contactId = button.dataset.contactId;
+            const action = button.dataset.action;
+            if (!contactId || !action) return;
+
+            if (action === "call") {
+              const contact = this.contacts.find(item => item.id === contactId);
+              if (contact?.phone) {
+                window.location.href = `tel:${contact.phone}`;
+              }
+              return;
+            }
+
+            if (action === "promote") {
+              this.promoteContact(contactId);
+              return;
+            }
+
+            if (action === "delete") {
+              const confirmed = await this.confirmModal("删除联系人", "删除后，这位联系人将不会再出现在“联系同事”和“紧急求助”里。", "删除");
+              if (!confirmed) {
+                this.openContactManager();
+                return;
+              }
+              this.deleteContact(contactId);
+            }
+          });
+        });
+      }
+    });
+  }
+
+  addContactFromModal() {
+    const name = document.getElementById("contact-name-input")?.value.trim() || "";
+    const role = document.getElementById("contact-role-input")?.value.trim() || "同事";
+    const phone = document.getElementById("contact-phone-input")?.value.trim() || "";
+    if (!name) {
+      this.infoModal("还没有填写姓名", "请先输入联系人的姓名或称呼。");
+      return;
+    }
+    if (!phone) {
+      this.infoModal("还没有填写电话", "请先输入联系电话。");
+      return;
+    }
+    if (!/^[0-9+()\s-]+$/.test(phone)) {
+      this.infoModal("电话号码格式不对", "请只输入数字，或使用 +、-、空格、括号这些常见电话符号。");
+      return;
+    }
+
+    this.contacts.push({
+      id: `contact-${Date.now()}`,
+      name,
+      role,
+      phone
+    });
+    this.saveContacts();
+    this.openContactManager();
+  }
+
+  promoteContact(contactId) {
+    const index = this.contacts.findIndex(item => item.id === contactId);
+    if (index <= 0) return;
+    const [contact] = this.contacts.splice(index, 1);
+    this.contacts.unshift(contact);
+    this.saveContacts();
+    this.openContactManager();
+  }
+
+  deleteContact(contactId) {
+    this.contacts = this.contacts.filter(item => item.id !== contactId);
+    this.saveContacts();
+    this.openContactManager();
   }
 
   promptResumeIfNeeded() {
@@ -963,18 +1146,26 @@ class HouChangApp {
     const grid = document.getElementById("task-grid");
     const filteredTasks = this.filterTasksByCategory(this.currentCategory);
     grid.innerHTML = filteredTasks.map(task => `
-      <div class="task-card" data-task-id="${escapeHtml(task.id)}">
+      <div class="task-card ${task.isCustom ? "task-card-custom" : ""}" data-task-id="${escapeHtml(task.id)}">
+        ${task.isCustom ? `<button class="task-manage-btn" data-task-manage="${escapeHtml(task.id)}">管理</button>` : ""}
         <div class="task-icon">${escapeHtml(task.icon)}</div>
         <h3>${escapeHtml(task.title)}</h3>
         <p>${escapeHtml(task.description)}</p>
-        <span class="task-category">${escapeHtml(categoryNames[task.category] || task.category)}</span>
-        ${task.isCustom ? '<span class="task-category" style="margin-left:8px;background:#ede9fe;color:#6d28d9;">自定义</span>' : ""}
+        <div class="task-badges">
+          <span class="task-category">${escapeHtml(categoryNames[task.category] || task.category)}</span>
+          ${task.isCustom ? '<span class="task-category task-category-custom">自定义</span>' : ""}
+        </div>
       </div>
     `).join("");
   }
 
   bindEvents() {
     document.getElementById("task-grid").addEventListener("click", event => {
+      const manageButton = event.target.closest(".task-manage-btn");
+      if (manageButton) {
+        this.openCustomTaskActions(manageButton.dataset.taskManage);
+        return;
+      }
       const card = event.target.closest(".task-card");
       if (card) this.startTask(card.dataset.taskId);
     });
@@ -990,7 +1181,7 @@ class HouChangApp {
 
     document.getElementById("current-profile-btn").addEventListener("click", () => this.openProfileManager());
     document.getElementById("manage-profile-btn").addEventListener("click", () => this.openProfileManager());
-    document.getElementById("create-task-btn").addEventListener("click", () => this.openCustomTaskBuilder());
+    document.getElementById("coach-workspace-btn").addEventListener("click", () => this.openCoachWorkspace());
     document.getElementById("share-progress-btn").addEventListener("click", () => this.openShareProgress());
     document.getElementById("video-idea-btn").addEventListener("click", () => this.openVideoIdea());
     document.getElementById("resume-btn").addEventListener("click", () => {
@@ -1034,37 +1225,41 @@ class HouChangApp {
 
     document.getElementById("mode-toggle-btn").addEventListener("click", () => this.toggleDisplayMode());
     document.getElementById("voice-settings-btn").addEventListener("click", () => this.openVoiceSettings());
+    document.getElementById("package-file-input").addEventListener("change", event => this.handleTeachingPackageFileSelected(event));
   }
 
   toggleDisplayMode() {
-    const body = document.body;
-    const currentMode = localStorage.getItem("display-mode") || "normal";
-
-    if (currentMode === "normal") {
-      body.classList.add("dark-mode");
-      localStorage.setItem("display-mode", "dark");
-    } else if (currentMode === "dark") {
-      body.classList.remove("dark-mode");
-      body.classList.add("high-contrast");
-      localStorage.setItem("display-mode", "high-contrast");
-    } else {
-      body.classList.remove("high-contrast");
-      localStorage.setItem("display-mode", "normal");
-    }
+    const currentMode = this.getDisplayMode();
+    const nextMode = currentMode === "normal" ? "dark" : currentMode === "dark" ? "high-contrast" : "normal";
+    this.setDisplayMode(nextMode);
   }
 
-  loadDisplayMode() {
-    const saved = localStorage.getItem("display-mode");
-    if (saved === "dark") {
+  applyDisplayMode(mode) {
+    document.body.classList.remove("dark-mode", "high-contrast");
+    if (mode === "dark") {
       document.body.classList.add("dark-mode");
-    } else if (saved === "high-contrast") {
+    } else if (mode === "high-contrast") {
       document.body.classList.add("high-contrast");
     }
   }
 
+  getDisplayMode() {
+    return this.loadScopedPreference("display-mode", "display-mode", "normal");
+  }
+
+  setDisplayMode(mode) {
+    this.saveScopedPreference("display-mode", mode);
+    this.applyDisplayMode(mode);
+  }
+
+  loadDisplayMode() {
+    this.applyDisplayMode(this.getDisplayMode());
+  }
+
   openVoiceSettings() {
-    const savedLang = localStorage.getItem("voice-lang") || "zh-CN";
-    const savedRate = localStorage.getItem("voice-rate") || "0.88";
+    const settings = this.getVoiceSettings();
+    const savedLang = settings.lang;
+    const savedRate = String(settings.rate);
     const html = `
       <label class="field-label">语音语言</label>
       <select id="voice-lang-select">
@@ -1085,8 +1280,7 @@ class HouChangApp {
         { label: "保存", variant: "primary", onClick: () => {
             const lang = document.getElementById("voice-lang-select").value;
             const rate = document.getElementById("voice-rate-input").value;
-            localStorage.setItem("voice-lang", lang);
-            localStorage.setItem("voice-rate", rate);
+            this.saveVoiceSettings({ lang, rate });
             this.infoModal("设置已保存", "语音语言和语速已保存，下次朗读时生效。");
           } }
       ],
@@ -1101,10 +1295,16 @@ class HouChangApp {
   }
 
   getVoiceSettings() {
+    const rate = parseFloat(this.loadScopedPreference("voice-rate", "voice-rate", "0.88"));
     return {
-      lang: localStorage.getItem("voice-lang") || "zh-CN",
-      rate: parseFloat(localStorage.getItem("voice-rate") || "0.88")
+      lang: this.loadScopedPreference("voice-lang", "voice-lang", "zh-CN"),
+      rate: Number.isFinite(rate) ? rate : 0.88
     };
+  }
+
+  saveVoiceSettings({ lang, rate }) {
+    this.saveScopedPreference("voice-lang", lang || "zh-CN");
+    this.saveScopedPreference("voice-rate", rate || "0.88");
   }
 
   openProfileManager() {
@@ -1130,6 +1330,7 @@ class HouChangApp {
       html,
       actions: [
         { label: "关闭", variant: "secondary", onClick: () => {} },
+        { label: "管理联系人", variant: "secondary", onClick: () => this.openContactManager() },
         {
           label: "新建使用者",
           variant: "primary",
@@ -1164,6 +1365,7 @@ class HouChangApp {
     this.activeProfileId = profileId;
     localStorage.setItem("houchang-active-profile", profileId);
     this.reloadProfileScopedData();
+    this.loadDisplayMode();
     this.currentTask = null;
     this.currentStepIndex = 0;
     this.currentUserImage = null;
@@ -1172,6 +1374,52 @@ class HouChangApp {
     this.updateResumeCard();
     this.renderTaskGrid();
     this.goHome();
+  }
+
+  openCoachWorkspace() {
+    const profile = this.getActiveProfile();
+    this.showModal({
+      title: "带教工作台",
+      html: `
+        <div class="share-card">
+          <div class="share-summary-card">
+            <div class="profile-row-title">${escapeHtml(profile.name)} 的带教资料</div>
+            <div class="profile-row-meta">在这里管理任务、联系人，以及发送到另一台设备用的“带教包”。</div>
+          </div>
+          <div class="workspace-grid">
+            <button class="workspace-action-btn" data-workspace-action="tasks">
+              <strong>📝 自定义任务</strong>
+              <span>新建、编辑、复制、置顶和删除</span>
+            </button>
+            <button class="workspace-action-btn" data-workspace-action="contacts">
+              <strong>📞 联系人</strong>
+              <span>维护紧急求助和联系同事名单</span>
+            </button>
+            <button class="workspace-action-btn" data-workspace-action="export">
+              <strong>📦 发送带教包</strong>
+              <span>把任务和设置发到另一台设备</span>
+            </button>
+            <button class="workspace-action-btn" data-workspace-action="import">
+              <strong>📥 导入带教包</strong>
+              <span>接收另一台设备发来的任务配置</span>
+            </button>
+          </div>
+          <p class="inline-note">“分享进度摘要”是给老师、家长或主管看结果；“带教包”是给另一台设备同步任务和配置。</p>
+        </div>
+      `,
+      actions: [{ label: "关闭", variant: "secondary", onClick: () => {} }],
+      afterRender: () => {
+        document.querySelectorAll(".workspace-action-btn").forEach(button => {
+          button.addEventListener("click", () => {
+            const action = button.dataset.workspaceAction;
+            if (action === "tasks") this.openCustomTaskManager();
+            if (action === "contacts") this.openContactManager();
+            if (action === "export") this.openTeachingPackageExporter();
+            if (action === "import") this.openTeachingPackageImporter();
+          });
+        });
+      }
+    });
   }
 
   buildDefaultHelp(instruction) {
@@ -1188,34 +1436,263 @@ class HouChangApp {
     };
   }
 
-  openCustomTaskBuilder() {
-    const html = `
-      <label class="field-label">任务名称</label>
-      <input id="task-name-input" type="text" placeholder="例如：茶水间补给准备">
-      <label class="field-label">任务分类</label>
-      <select id="task-category-input">
-        <option value="restaurant">餐厅</option>
-        <option value="snack">零食</option>
-        <option value="warehouse">仓库</option>
-        <option value="carwash">洗车</option>
-      </select>
-      <label class="field-label">一句话说明</label>
-      <input id="task-description-input" type="text" placeholder="例如：把这个岗位的开工准备拆成清楚步骤。">
-      <label class="field-label">步骤内容</label>
-      <textarea id="task-steps-input" placeholder="每行写一步，可用 | 分隔更多信息。&#10;格式：步骤名称|补充说明|更简单说法|为什么要做&#10;示例：擦工作台|把水渍和碎屑擦干净|把桌子擦干净|这样后面摆工具更方便"></textarea>
-      <p class="inline-note">不需要懂代码。每行写一步就可以；如果只写步骤名称，系统也会自动补齐默认说明。</p>
+  generateLocalId(prefix) {
+    return `${prefix}-${this.activeProfileId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  splitHelpText(value) {
+    return value
+      .split(/[；;、，]/)
+      .map(item => item.trim())
+      .filter(Boolean);
+  }
+
+  buildTaskStepsEditorText(task) {
+    return (task.steps || []).map(step => [
+      step.instruction || "",
+      step.detail || "",
+      step.simplify || "",
+      step.whyItMatters || "",
+      (step.helpNotFound || []).join("；"),
+      (step.helpNeed || []).join("；")
+    ].join("|")).join("\n");
+  }
+
+  parseTaskStepsText(stepsText, category, taskId) {
+    const lines = stepsText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    return lines.map((line, index) => {
+      const parts = line.split("|").map(item => item.trim());
+      const instruction = parts[0];
+      if (!instruction) {
+        throw new Error(`第 ${index + 1} 行还没有填写步骤名称。`);
+      }
+      const detail = parts[1] || `${instruction}，按平时的方式一步一步完成。`;
+      const simplify = parts[2] || instruction;
+      const whyItMatters = parts[3] || "做完这一步，后面的流程会更顺。";
+      const helpers = this.buildDefaultHelp(instruction);
+      const helpNotFound = parts[4] ? this.splitHelpText(parts[4]) : helpers.helpNotFound;
+      const helpNeed = parts[5] ? this.splitHelpText(parts[5]) : helpers.helpNeed;
+      return {
+        instruction,
+        detail,
+        simplify,
+        image: CUSTOM_TASK_IMAGE_MAP[category] || "icon-check",
+        userImageKey: `${taskId}-step-${index}`,
+        helpNotFound,
+        helpNeed,
+        whyItMatters
+      };
+    });
+  }
+
+  createCustomTaskFingerprint(task) {
+    return JSON.stringify({
+      title: task.title,
+      description: task.description,
+      category: task.category,
+      steps: (task.steps || []).map(step => ({
+        instruction: step.instruction,
+        detail: step.detail,
+        simplify: step.simplify,
+        whyItMatters: step.whyItMatters,
+        helpNotFound: step.helpNotFound || [],
+        helpNeed: step.helpNeed || []
+      }))
+    });
+  }
+
+  buildCustomTaskRecord({ id, title, category, description, steps, icon, importedFingerprint }) {
+    const task = {
+      id,
+      title,
+      icon: icon || CUSTOM_TASK_ICON_MAP[category] || "🧩",
+      description,
+      category,
+      isCustom: true,
+      steps
+    };
+    task.importedFingerprint = importedFingerprint || this.createCustomTaskFingerprint(task);
+    return task;
+  }
+
+  findCustomTaskIndex(taskId) {
+    return this.customTasks.findIndex(task => task.id === taskId);
+  }
+
+  clearTaskProgressIfNeeded(taskId) {
+    const saved = this.loadProgress();
+    if (saved?.taskId === taskId) {
+      this.clearProgress();
+    }
+    if (this.currentTask?.id === taskId) {
+      this.goHome();
+    }
+  }
+
+  saveAndRefreshCustomTasks() {
+    this.saveCustomTasks();
+    this.renderTaskGrid();
+    this.updateResumeCard();
+  }
+
+  openCustomTaskManager() {
+    const listHtml = this.customTasks.length ? this.customTasks.map((task, index) => `
+      <div class="task-admin-row">
+        <div class="task-admin-copy">
+          <div class="profile-row-title">${escapeHtml(task.title)}</div>
+          <div class="profile-row-meta">${escapeHtml(categoryNames[task.category] || task.category)} · ${task.steps.length} 步 · 排序第 ${index + 1}</div>
+        </div>
+        <button class="btn btn-secondary task-admin-manage-btn" data-task-admin="${escapeHtml(task.id)}">管理</button>
+      </div>
+    `).join("") : `
+      <div class="contact-empty">
+        <p>当前还没有自定义任务。</p>
+        <p>可以先新建一个常用岗位任务，再通过带教包发到另一台设备。</p>
+      </div>
     `;
+
     this.showModal({
-      title: "新建自定义任务",
-      html,
+      title: "自定义任务管理",
+      html: `
+        <div class="share-card">
+          <div class="share-summary-card">
+            <div class="profile-row-title">当前使用者共有 ${this.customTasks.length} 个自定义任务</div>
+            <div class="profile-row-meta">内置任务保持只读；如果要调整内置流程，请先复制成自定义任务再修改。</div>
+          </div>
+          <div class="profile-list">${listHtml}</div>
+        </div>
+      `,
       actions: [
-        { label: "取消", variant: "secondary", onClick: () => {} },
-        { label: "保存任务", variant: "primary", keepOpen: true, onClick: () => this.saveCustomTaskFromModal() }
+        { label: "返回工作台", variant: "secondary", onClick: () => this.openCoachWorkspace() },
+        { label: "新建任务", variant: "primary", onClick: () => this.openCustomTaskBuilder() }
+      ],
+      afterRender: () => {
+        document.querySelectorAll(".task-admin-manage-btn").forEach(button => {
+          button.addEventListener("click", () => this.openCustomTaskActions(button.dataset.taskAdmin));
+        });
+      }
+    });
+  }
+
+  openCustomTaskActions(taskId) {
+    const index = this.findCustomTaskIndex(taskId);
+    const task = this.customTasks[index];
+    if (!task) return;
+
+    this.showModal({
+      title: `管理任务 · ${task.title}`,
+      html: `
+        <div class="share-card">
+          <div class="share-summary-card">
+            <div class="profile-row-title">${escapeHtml(task.title)}</div>
+            <div class="profile-row-meta">${escapeHtml(task.description)}<br>${task.steps.length} 步 · 当前排序第 ${index + 1}</div>
+          </div>
+        </div>
+      `,
+      actions: [
+        { label: "返回列表", variant: "secondary", onClick: () => this.openCustomTaskManager() },
+        { label: "编辑", variant: "secondary", onClick: () => this.openCustomTaskBuilder(taskId) },
+        { label: "复制", variant: "secondary", onClick: () => this.duplicateCustomTask(taskId) },
+        ...(index > 0 ? [{ label: "置顶", variant: "secondary", onClick: () => this.pinCustomTask(taskId) }] : []),
+        ...(index > 0 ? [{ label: "上移", variant: "secondary", onClick: () => this.moveCustomTask(taskId, -1) }] : []),
+        ...(index < this.customTasks.length - 1 ? [{ label: "下移", variant: "secondary", onClick: () => this.moveCustomTask(taskId, 1) }] : []),
+        { label: "删除", variant: "primary", onClick: () => this.confirmDeleteCustomTask(taskId) }
       ]
     });
   }
 
-  saveCustomTaskFromModal() {
+  async confirmDeleteCustomTask(taskId) {
+    const task = this.customTasks.find(item => item.id === taskId);
+    if (!task) return;
+    const confirmed = await this.confirmModal("删除自定义任务", `删除后，“${task.title}”会从当前使用者的任务列表里移除。`, "删除");
+    if (!confirmed) {
+      this.openCustomTaskActions(taskId);
+      return;
+    }
+    this.deleteCustomTask(taskId);
+  }
+
+  deleteCustomTask(taskId) {
+    const index = this.findCustomTaskIndex(taskId);
+    if (index < 0) return;
+    this.customTasks.splice(index, 1);
+    this.clearTaskProgressIfNeeded(taskId);
+    this.saveAndRefreshCustomTasks();
+    this.infoModal("任务已删除", "这个自定义任务已经从当前使用者的列表里移除了。");
+  }
+
+  duplicateCustomTask(taskId) {
+    const source = this.customTasks.find(task => task.id === taskId);
+    if (!source) return;
+    const newTaskId = this.generateLocalId("custom");
+    const steps = (source.steps || []).map((step, index) => ({
+      ...JSON.parse(JSON.stringify(step)),
+      userImageKey: `${newTaskId}-step-${index}`
+    }));
+    const duplicated = this.buildCustomTaskRecord({
+      id: newTaskId,
+      title: `${source.title}（副本）`,
+      category: source.category,
+      description: source.description,
+      steps,
+      icon: source.icon
+    });
+    this.customTasks.unshift(duplicated);
+    this.saveAndRefreshCustomTasks();
+    this.infoModal("任务已复制", "已经生成一个不影响原任务的新副本，你可以继续编辑它。");
+  }
+
+  pinCustomTask(taskId) {
+    const index = this.findCustomTaskIndex(taskId);
+    if (index <= 0) return;
+    const [task] = this.customTasks.splice(index, 1);
+    this.customTasks.unshift(task);
+    this.saveAndRefreshCustomTasks();
+    this.openCustomTaskManager();
+  }
+
+  moveCustomTask(taskId, offset) {
+    const index = this.findCustomTaskIndex(taskId);
+    const nextIndex = index + offset;
+    if (index < 0 || nextIndex < 0 || nextIndex >= this.customTasks.length) return;
+    const [task] = this.customTasks.splice(index, 1);
+    this.customTasks.splice(nextIndex, 0, task);
+    this.saveAndRefreshCustomTasks();
+    this.openCustomTaskActions(taskId);
+  }
+
+  openCustomTaskBuilder(taskId = null) {
+    const task = taskId ? this.customTasks.find(item => item.id === taskId) : null;
+    const isEditing = Boolean(task);
+    const html = `
+      <label class="field-label">任务名称</label>
+      <input id="task-name-input" type="text" placeholder="例如：茶水间补给准备" value="${escapeHtml(task?.title || "")}">
+      <label class="field-label">任务分类</label>
+      <select id="task-category-input">
+        <option value="restaurant" ${(task?.category || "") === "restaurant" ? "selected" : ""}>餐厅</option>
+        <option value="snack" ${(task?.category || "") === "snack" ? "selected" : ""}>零食</option>
+        <option value="warehouse" ${(task?.category || "") === "warehouse" ? "selected" : ""}>仓库</option>
+        <option value="carwash" ${(task?.category || "") === "carwash" ? "selected" : ""}>洗车</option>
+      </select>
+      <label class="field-label">一句话说明</label>
+      <input id="task-description-input" type="text" placeholder="例如：把这个岗位的开工准备拆成清楚步骤。" value="${escapeHtml(task?.description || "")}">
+      <label class="field-label">步骤内容</label>
+      <textarea id="task-steps-input" placeholder="每行写一步，可用 | 分隔更多信息。&#10;格式：步骤名称|补充说明|更简单说法|为什么要做|找不到时提示1；提示2|需要帮助时话术1；话术2">${escapeHtml(task ? this.buildTaskStepsEditorText(task) : "")}</textarea>
+      <p class="inline-note">支持完整编辑每一步的 instruction / detail / simplify / whyItMatters / helpNotFound / helpNeed。后两项用中文分号“；”分开即可。</p>
+    `;
+    this.showModal({
+      title: isEditing ? "编辑自定义任务" : "新建自定义任务",
+      html,
+      actions: [
+        { label: isEditing ? "返回管理" : "取消", variant: "secondary", onClick: () => isEditing ? this.openCustomTaskActions(taskId) : this.openCustomTaskManager() },
+        { label: isEditing ? "保存修改" : "保存任务", variant: "primary", keepOpen: true, onClick: () => this.saveCustomTaskFromModal(taskId) }
+      ]
+    });
+  }
+
+  saveCustomTaskFromModal(taskId = null) {
+    const existingIndex = taskId ? this.findCustomTaskIndex(taskId) : -1;
+    const existingTask = existingIndex >= 0 ? this.customTasks[existingIndex] : null;
     const title = document.getElementById("task-name-input").value.trim();
     const category = document.getElementById("task-category-input").value;
     const description = document.getElementById("task-description-input").value.trim() || "这是带教人员为当前使用者定制的任务。";
@@ -1229,42 +1706,36 @@ class HouChangApp {
       return;
     }
 
-    const lines = stepsText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-    const customTaskId = `custom-${this.activeProfileId}-${Date.now()}`;
-    const iconMap = { restaurant: "🍽️", snack: "🍬", warehouse: "📦", carwash: "🚗" };
-    const imageMap = { restaurant: "icon-wipe", snack: "icon-shelf", warehouse: "icon-box", carwash: "icon-hose" };
-    const steps = lines.map((line, index) => {
-      const parts = line.split("|").map(item => item.trim());
-      const instruction = parts[0];
-      const detail = parts[1] || `${instruction}，按平时的方式一步一步完成。`;
-      const simplify = parts[2] || instruction;
-      const whyItMatters = parts[3] || "做完这一步，后面的流程会更顺。";
-      const helpers = this.buildDefaultHelp(instruction);
-      return {
-        instruction,
-        detail,
-        simplify,
-        image: imageMap[category] || "icon-check",
-        userImageKey: `${customTaskId}-step-${index}`,
-        helpNotFound: helpers.helpNotFound,
-        helpNeed: helpers.helpNeed,
-        whyItMatters
-      };
-    });
+    const customTaskId = existingTask?.id || this.generateLocalId("custom");
+    let steps;
+    try {
+      steps = this.parseTaskStepsText(stepsText, category, customTaskId);
+    } catch (error) {
+      this.infoModal("步骤内容有一行没写完整", error.message || "请检查每一行的步骤名称是否都已填写。");
+      return;
+    }
 
-    this.customTasks.push({
+    const record = this.buildCustomTaskRecord({
       id: customTaskId,
       title,
-      icon: iconMap[category] || "🧩",
-      description,
       category,
-      isCustom: true,
-      steps
+      description,
+      steps,
+      icon: existingTask?.icon || CUSTOM_TASK_ICON_MAP[category]
     });
-    this.saveCustomTasks();
-    this.renderTaskGrid();
+
+    if (existingIndex >= 0) {
+      this.customTasks.splice(existingIndex, 1, record);
+      if (this.currentTask?.id === customTaskId) {
+        this.currentTask = record;
+      }
+    } else {
+      this.customTasks.unshift(record);
+    }
+
+    this.saveAndRefreshCustomTasks();
     this.closeModal();
-    this.infoModal("任务已保存", "这个自定义任务已经加入列表，当前使用者下次也能继续使用。");
+    this.infoModal(existingTask ? "任务已更新" : "任务已保存", existingTask ? "这个自定义任务已经更新，首页和执行页会使用最新内容。" : "这个自定义任务已经加入列表，当前使用者下次也能继续使用。");
   }
 
   createSharePayload() {
@@ -1284,9 +1755,14 @@ class HouChangApp {
     };
   }
 
-  createShareUrl(payload) {
+  encodeHashPayload(prefix, payload) {
     const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-    return `${window.location.href.split("#")[0]}#share=${encoded}`;
+    const baseUrl = "https://totdaretodo-TOT.github.io/index.html";
+    return `${baseUrl}#${prefix}=${encoded}`;
+  }
+
+  createShareUrl(payload) {
+    return this.encodeHashPayload("share", payload);
   }
 
   async copyText(text) {
@@ -1308,19 +1784,39 @@ class HouChangApp {
     if (!copied) throw new Error("copy-failed");
   }
 
-  decodeSharePayload() {
+  downloadJson(filename, payload) {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  decodeHashPayload(prefix) {
     const hash = window.location.hash || "";
-    if (!hash.startsWith("#share=")) return null;
+    const marker = `#${prefix}=`;
+    if (!hash.startsWith(marker)) return null;
     try {
-      return JSON.parse(decodeURIComponent(escape(atob(hash.replace("#share=", "")))));
+      const raw = decodeURIComponent(hash.slice(marker.length));
+      return JSON.parse(decodeURIComponent(escape(atob(raw))));
     } catch (error) {
-      return null;
+      return false;
     }
+  }
+
+  decodeSharePayload() {
+    return this.decodeHashPayload("share");
   }
 
   showSharedViewIfNeeded() {
     const payload = this.decodeSharePayload();
-    if (!payload) return;
+    if (!payload) return false;
+    if (payload === false) {
+      this.infoModal("进度摘要无法识别", "这个进度分享链接不完整，暂时没法打开。");
+      return true;
+    }
     const blockedHtml = (payload.blocked || []).length
       ? payload.blocked.map(item => `<li>${escapeHtml(item.taskTitle)} · ${escapeHtml(item.stepInstruction)}（${item.count} 次）</li>`).join("")
       : "<li>当前没有记录到明显卡点</li>";
@@ -1347,6 +1843,12 @@ class HouChangApp {
       `,
       actions: [{ label: "我知道了", variant: "primary", onClick: () => {} }]
     });
+    return true;
+  }
+
+  showIncomingHashViewIfNeeded() {
+    if (this.showTeachingPackageIfNeeded()) return;
+    this.showSharedViewIfNeeded();
   }
 
   downloadShareCard(payload) {
@@ -1411,12 +1913,396 @@ class HouChangApp {
     link.click();
   }
 
+  sanitizeTaskForExport(task) {
+    return {
+      title: task.title,
+      description: task.description,
+      category: task.category,
+      steps: (task.steps || []).map(step => ({
+        instruction: step.instruction,
+        detail: step.detail,
+        simplify: step.simplify,
+        whyItMatters: step.whyItMatters,
+        helpNotFound: step.helpNotFound || [],
+        helpNeed: step.helpNeed || []
+      }))
+    };
+  }
+
+  createTeachingPackagePayload() {
+    const voice = this.getVoiceSettings();
+    return {
+      version: TEACHING_PACKAGE_VERSION,
+      profileName: this.getActiveProfile().name,
+      exportedAt: new Date().toLocaleString("zh-CN"),
+      customTasks: this.customTasks.map(task => this.sanitizeTaskForExport(task)),
+      contacts: this.contacts.map(contact => ({
+        name: contact.name,
+        phone: contact.phone,
+        role: contact.role
+      })),
+      preferences: {
+        voiceLang: voice.lang,
+        voiceRate: voice.rate,
+        displayMode: this.getDisplayMode()
+      }
+    };
+  }
+
+  createTeachingPackageUrl(payload) {
+    return this.encodeHashPayload("package", payload);
+  }
+
+  isValidTeachingPackage(payload) {
+    return Boolean(
+      payload &&
+      typeof payload === "object" &&
+      Array.isArray(payload.customTasks) &&
+      Array.isArray(payload.contacts) &&
+      payload.preferences &&
+      typeof payload.preferences === "object"
+    );
+  }
+
+  decodeTeachingPackagePayload() {
+    return this.decodeHashPayload("package");
+  }
+
+  showTeachingPackageIfNeeded() {
+    const payload = this.decodeTeachingPackagePayload();
+    if (payload === null) return false;
+    if (payload === false || !this.isValidTeachingPackage(payload)) {
+      this.infoModal("带教包无法识别", "这个带教包链接不完整，暂时没法导入。");
+      return true;
+    }
+
+    this.showModal({
+      title: "收到带教包",
+      html: `
+        <div class="share-card">
+          <div class="share-summary-card">
+            <div class="profile-row-title">${escapeHtml(payload.profileName || "未命名使用者")} 的带教包</div>
+            <div class="profile-row-meta">导出时间：${escapeHtml(payload.exportedAt || "")} · 版本 ${escapeHtml(String(payload.version || TEACHING_PACKAGE_VERSION))}</div>
+          </div>
+          <div class="share-summary-card">
+            <div class="profile-row-meta">包含 ${payload.customTasks.length} 个自定义任务、${payload.contacts.length} 位联系人，以及语音/显示模式设置。</div>
+          </div>
+          <div class="share-summary-card">
+            <div class="profile-row-title">导入方式</div>
+            <div class="profile-row-meta">会导入到当前使用者“${escapeHtml(this.getActiveProfile().name)}”名下；联系人会整体替换，自定义任务会追加导入并自动跳过重复内容。</div>
+          </div>
+        </div>
+      `,
+      actions: [
+        { label: "暂不导入", variant: "secondary", onClick: () => {} },
+        {
+          label: "导入到当前使用者",
+          variant: "primary",
+          onClick: () => {
+            const summary = this.applyTeachingPackage(payload);
+            this.clearHashAfterImport();
+            this.showTeachingPackageImportResult(summary, payload.profileName || "当前带教包");
+          }
+        }
+      ]
+    });
+    return true;
+  }
+
+  clearHashAfterImport() {
+    if (window.location.hash.startsWith("#package=")) {
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+    }
+  }
+
+  normalizeImportedTask(task) {
+    const category = task.category && categoryNames[task.category] ? task.category : "restaurant";
+    const description = task.description?.trim() || "这是从另一台设备导入的带教任务。";
+    const steps = Array.isArray(task.steps) ? task.steps : [];
+    const normalizedSteps = steps
+      .map(step => {
+        const instruction = (step.instruction || "").trim();
+        if (!instruction) return null;
+        const helpers = this.buildDefaultHelp(instruction);
+        return {
+          instruction,
+          detail: (step.detail || `${instruction}，按平时的方式一步一步完成。`).trim(),
+          simplify: (step.simplify || instruction).trim(),
+          whyItMatters: (step.whyItMatters || "做完这一步，后面的流程会更顺。").trim(),
+          helpNotFound: Array.isArray(step.helpNotFound) && step.helpNotFound.length ? step.helpNotFound : helpers.helpNotFound,
+          helpNeed: Array.isArray(step.helpNeed) && step.helpNeed.length ? step.helpNeed : helpers.helpNeed
+        };
+      })
+      .filter(Boolean);
+
+    if (!task.title || !normalizedSteps.length) return null;
+    return {
+      title: task.title.trim(),
+      description,
+      category,
+      steps: normalizedSteps
+    };
+  }
+
+  applyTeachingPackage(payload) {
+    const existingFingerprints = new Set(
+      this.customTasks.map(task => task.importedFingerprint || this.createCustomTaskFingerprint(task))
+    );
+
+    let importedCount = 0;
+    let skippedCount = 0;
+
+    const importedTasks = [];
+    (payload.customTasks || []).forEach(sourceTask => {
+      const normalized = this.normalizeImportedTask(sourceTask);
+      if (!normalized) {
+        skippedCount += 1;
+        return;
+      }
+
+      const fingerprint = this.createCustomTaskFingerprint(normalized);
+      if (existingFingerprints.has(fingerprint)) {
+        skippedCount += 1;
+        return;
+      }
+
+      const localTaskId = this.generateLocalId("custom");
+      const localSteps = normalized.steps.map((step, index) => ({
+        instruction: step.instruction,
+        detail: step.detail,
+        simplify: step.simplify,
+        whyItMatters: step.whyItMatters,
+        helpNotFound: step.helpNotFound,
+        helpNeed: step.helpNeed,
+        image: CUSTOM_TASK_IMAGE_MAP[normalized.category] || "icon-check",
+        userImageKey: `${localTaskId}-step-${index}`
+      }));
+
+      importedTasks.push(this.buildCustomTaskRecord({
+        id: localTaskId,
+        title: normalized.title,
+        category: normalized.category,
+        description: normalized.description,
+        steps: localSteps,
+        icon: CUSTOM_TASK_ICON_MAP[normalized.category],
+        importedFingerprint: fingerprint
+      }));
+      existingFingerprints.add(fingerprint);
+      importedCount += 1;
+    });
+
+    this.customTasks = [...this.customTasks, ...importedTasks];
+
+    const contacts = Array.isArray(payload.contacts) ? payload.contacts : [];
+    this.contacts = contacts
+      .map(contact => ({
+        id: this.generateLocalId("contact"),
+        name: (contact.name || "").trim(),
+        role: (contact.role || "同事").trim(),
+        phone: (contact.phone || "").trim()
+      }))
+      .filter(contact => contact.name && contact.phone);
+
+    const appliedPreferences = [];
+    if (payload.preferences?.voiceLang) {
+      this.saveScopedPreference("voice-lang", payload.preferences.voiceLang);
+      appliedPreferences.push("语音语言");
+    }
+    if (payload.preferences?.voiceRate !== undefined && payload.preferences?.voiceRate !== null) {
+      this.saveScopedPreference("voice-rate", payload.preferences.voiceRate);
+      appliedPreferences.push("语速");
+    }
+    if (payload.preferences?.displayMode) {
+      this.saveScopedPreference("display-mode", payload.preferences.displayMode);
+      appliedPreferences.push("显示模式");
+    }
+
+    this.saveCustomTasks();
+    this.saveContacts();
+    this.loadDisplayMode();
+    this.renderTaskGrid();
+    this.updateResumeCard();
+
+    return {
+      importedCount,
+      skippedCount,
+      contactCount: this.contacts.length,
+      contactsReplaced: true,
+      appliedPreferences
+    };
+  }
+
+  showTeachingPackageImportResult(summary, packageName) {
+    this.showModal({
+      title: "带教包已导入",
+      html: `
+        <div class="share-card">
+          <div class="share-summary-card">
+            <div class="profile-row-title">已导入到 ${escapeHtml(this.getActiveProfile().name)}</div>
+            <div class="profile-row-meta">来源：${escapeHtml(packageName || "带教包")}</div>
+          </div>
+          <div class="share-summary-card">
+            <ul>
+              <li>新增自定义任务：${summary.importedCount} 个</li>
+              <li>跳过重复任务：${summary.skippedCount} 个</li>
+              <li>联系人已替换：${summary.contactsReplaced ? `是（当前 ${summary.contactCount} 位）` : "否"}</li>
+              <li>已覆盖设置：${summary.appliedPreferences.length ? summary.appliedPreferences.join("、") : "无"}</li>
+            </ul>
+          </div>
+        </div>
+      `,
+      actions: [{ label: "我知道了", variant: "primary", onClick: () => {} }]
+    });
+  }
+
+  parseTeachingPackageSource(sourceText) {
+    const trimmed = (sourceText || "").trim();
+    if (!trimmed) {
+      throw new Error("还没有粘贴任何带教包内容。");
+    }
+
+    let payload = null;
+    const hashMatch = trimmed.match(/#package=([A-Za-z0-9+/=%_-]+)/);
+    if (hashMatch) {
+      payload = this.decodeHashPayloadFromRaw(hashMatch[1]);
+    } else if (trimmed.startsWith("#package=")) {
+      payload = this.decodeHashPayloadFromRaw(trimmed.replace("#package=", ""));
+    } else if (trimmed.startsWith("{")) {
+      payload = JSON.parse(trimmed);
+    } else {
+      payload = this.decodeHashPayloadFromRaw(trimmed);
+    }
+
+    if (!this.isValidTeachingPackage(payload)) {
+      throw new Error("带教包格式不完整，暂时没法导入。");
+    }
+
+    return payload;
+  }
+
+  decodeHashPayloadFromRaw(rawValue) {
+    return JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(rawValue)))));
+  }
+
+  openTeachingPackageExporter() {
+    const payload = this.createTeachingPackagePayload();
+    const packageUrl = this.createTeachingPackageUrl(payload);
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(packageUrl)}`;
+    this.showModal({
+      title: "发送带教包",
+      html: `
+        <div class="share-card">
+          <div class="share-summary-card">
+            <div class="profile-row-title">${escapeHtml(payload.profileName)} 的带教包</div>
+            <div class="profile-row-meta">包含 ${payload.customTasks.length} 个自定义任务、${payload.contacts.length} 位联系人，以及语音与显示模式设置。</div>
+          </div>
+          <div class="share-qr-wrap">
+            <img class="share-qr" src="${qrUrl}" alt="带教包二维码" onerror="handleShareQrError(this)">
+            <div class="share-qr-fallback hidden">
+              当前网络下二维码没有加载出来，你仍然可以复制下面的同步链接，或者直接下载 JSON 文件发送。
+            </div>
+          </div>
+          <div class="share-summary-card">
+            <div class="profile-row-title">同步说明</div>
+            <div class="profile-row-meta">“发送带教包”是把任务和配置同步到另一台设备，不会带上历史记录、参考图片和本地视频。</div>
+            <div class="share-link">${escapeHtml(packageUrl)}</div>
+          </div>
+        </div>
+      `,
+      actions: [
+        { label: "返回工作台", variant: "secondary", onClick: () => this.openCoachWorkspace() },
+        {
+          label: "复制同步链接",
+          variant: "secondary",
+          keepOpen: true,
+          onClick: async () => {
+            try {
+              await this.copyText(packageUrl);
+              this.infoModal("同步链接已复制", "现在可以把这条链接发到另一台设备，在那边直接导入。");
+            } catch (error) {
+              this.infoModal("复制失败", "这个浏览器暂时没有复制成功，可以手动复制下面的链接。");
+            }
+          }
+        },
+        {
+          label: "下载 JSON",
+          variant: "primary",
+          keepOpen: true,
+          onClick: () => this.downloadJson(`一步步-${payload.profileName}-带教包.json`, payload)
+        }
+      ]
+    });
+  }
+
+  openTeachingPackageImporter(prefill = "") {
+    this.showModal({
+      title: "导入带教包",
+      html: `
+        <div class="share-card">
+          <div class="share-summary-card">
+            <div class="profile-row-title">导入到当前使用者：${escapeHtml(this.getActiveProfile().name)}</div>
+            <div class="profile-row-meta">支持粘贴同步链接、粘贴 JSON，或直接选择带教包文件。</div>
+          </div>
+          <label class="field-label">粘贴带教包链接或 JSON</label>
+          <textarea id="package-import-input" placeholder="把 #package= 链接或 JSON 内容粘贴到这里">${escapeHtml(prefill)}</textarea>
+          <p class="inline-note">导入后会替换当前使用者联系人，追加自定义任务，并覆盖语音/显示模式设置。</p>
+        </div>
+      `,
+      actions: [
+        { label: "返回工作台", variant: "secondary", onClick: () => this.openCoachWorkspace() },
+        {
+          label: "选择 JSON 文件",
+          variant: "secondary",
+          keepOpen: true,
+          onClick: () => document.getElementById("package-file-input").click()
+        },
+        {
+          label: "导入到当前使用者",
+          variant: "primary",
+          keepOpen: true,
+          onClick: () => this.importTeachingPackageFromText()
+        }
+      ]
+    });
+  }
+
+  importTeachingPackageFromText() {
+    const text = document.getElementById("package-import-input")?.value || "";
+    let payload;
+    try {
+      payload = this.parseTeachingPackageSource(text);
+    } catch (error) {
+      this.infoModal("带教包无法导入", error.message || "请检查链接或 JSON 是否完整。");
+      return;
+    }
+    this.closeModal();
+    const summary = this.applyTeachingPackage(payload);
+    this.showTeachingPackageImportResult(summary, payload.profileName || "带教包");
+  }
+
+  async handleTeachingPackageFileSelected(event) {
+    const input = event.target;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const payload = this.parseTeachingPackageSource(text);
+      this.closeModal();
+      const summary = this.applyTeachingPackage(payload);
+      this.showTeachingPackageImportResult(summary, payload.profileName || file.name);
+    } catch (error) {
+      this.infoModal("带教包文件无法导入", error.message || "请选择完整的 JSON 带教包文件。");
+    }
+  }
+
   openShareProgress() {
     const payload = this.createSharePayload();
     const shareUrl = this.createShareUrl(payload);
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(shareUrl)}`;
     this.showModal({
-      title: "分享当前进度",
+      title: "分享进度摘要",
       html: `
         <div class="share-card">
           <div class="share-summary-card">
@@ -1431,7 +2317,7 @@ class HouChangApp {
           </div>
           <div class="share-summary-card">
             <div class="profile-row-title">扫码说明</div>
-            <div class="profile-row-meta">带教人员扫码后，会在浏览器里看到当前这份进度摘要。部署到 GitHub Pages / Vercel 后更适合跨设备使用。</div>
+            <div class="profile-row-meta">“分享进度摘要”只给老师、家长或主管看结果；如果是想把任务发到另一台设备，请去“带教工作台”发送带教包。</div>
             <div class="share-link">${escapeHtml(shareUrl)}</div>
           </div>
         </div>

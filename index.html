@@ -442,9 +442,14 @@
 
         <div class="quick-actions">
           <button class="quick-action-btn" id="manage-profile-btn">👤 切换使用者</button>
-          <button class="quick-action-btn" id="create-task-btn">📝 新建任务</button>
-          <button class="quick-action-btn" id="share-progress-btn">📤 分享进度</button>
+          <button class="quick-action-btn" id="coach-workspace-btn">🧭 带教工作台</button>
+          <button class="quick-action-btn" id="share-progress-btn">📤 分享进度摘要</button>
           <button class="quick-action-btn" id="video-idea-btn">📹 视频通话设想</button>
+        </div>
+
+        <div class="coach-note">
+          <p><strong>分享进度摘要</strong> 适合发给老师、家长或主管查看成果。</p>
+          <p><strong>带教工作台</strong> 用来管理自定义任务、联系人，并把带教包同步到另一台设备。</p>
         </div>
 
         <div class="category-tabs" id="category-tabs">
@@ -669,6 +674,8 @@
       </button>
     </nav>
   </div>
+
+  <input id="package-file-input" type="file" accept=".json,application/json" hidden>
 
   <div class="modal-overlay hidden" id="modal-overlay">
       <div class="modal-card">

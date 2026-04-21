@@ -42,6 +42,7 @@ body.dark-mode .task-card,
 body.dark-mode .step-card,
 body.dark-mode .welcome-card,
 body.dark-mode .quick-action-btn,
+body.dark-mode .coach-note,
 body.dark-mode .category-tab,
 body.dark-mode .image-panel,
 body.dark-mode .help-section,
@@ -52,6 +53,8 @@ body.dark-mode .confirm-card,
 body.dark-mode .modal-card,
 body.dark-mode .profile-row,
 body.dark-mode .contact-row,
+body.dark-mode .workspace-action-btn,
+body.dark-mode .task-admin-row,
 body.dark-mode .back-btn,
 body.dark-mode .nav-btn {
   background-color: var(--card-bg);
@@ -380,6 +383,29 @@ body {
   margin-bottom: 20px;
 }
 
+.coach-note {
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #edf9f0, #f7fcf8);
+  border: 1px solid #cfead8;
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.coach-note p {
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.coach-note p + p {
+  margin-top: 8px;
+}
+
+.coach-note strong {
+  color: var(--primary-dark);
+}
+
 .quick-action-btn {
   border: none;
   background: var(--card-bg);
@@ -446,6 +472,7 @@ body {
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
   border: 2px solid transparent;
+  position: relative;
 }
 
 .task-card:hover {
@@ -474,6 +501,36 @@ body {
   margin-bottom: 8px;
 }
 
+.task-card-custom {
+  border-color: #cfead8;
+  background: linear-gradient(135deg, #ffffff, #f6fcf7);
+}
+
+.task-manage-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  border: 1px solid #b7e0c0;
+  background: #edf9f0;
+  color: #166534;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.task-manage-btn:hover {
+  background: #dcf4e2;
+}
+
+.task-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .task-card .task-category {
   display: inline-block;
   padding: 2px 8px;
@@ -481,7 +538,11 @@ body {
   border-radius: 10px;
   font-size: 12px;
   color: var(--primary-dark);
-  margin-top: 8px;
+}
+
+.task-category-custom {
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 .task-header {
@@ -1150,6 +1211,63 @@ body.high-contrast .emergency-btn {
   background: #1e8449;
 }
 
+.contact-empty {
+  padding: 16px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  color: var(--text-light);
+  text-align: center;
+  line-height: 1.7;
+}
+
+.contact-empty p {
+  margin: 0;
+}
+
+.contact-empty p + p {
+  margin-top: 6px;
+}
+
+.contact-editor-row {
+  align-items: flex-start;
+}
+
+.contact-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.btn-contact-manage {
+  padding: 9px 12px;
+  font-size: 14px;
+}
+
+.btn-danger-soft {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.btn-danger-soft:hover {
+  background: #fecaca;
+}
+
+.contact-role-primary {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.contact-form-card {
+  margin-top: 14px;
+}
+
+.contact-form-card input + input {
+  margin-top: 10px;
+}
+
 .assist-panel {
   background: #fff7ed;
   border: 1px solid #fdba74;
@@ -1570,6 +1688,22 @@ body.high-contrast .emergency-btn {
   margin-bottom: 12px;
 }
 
+@media (max-width: 640px) {
+  .contact-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .contact-row-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .contact-row-actions .btn {
+    flex: 1 1 100%;
+  }
+}
+
 .confirm-list {
   display: flex;
   flex-direction: column;
@@ -1783,6 +1917,43 @@ body.high-contrast .emergency-btn {
   gap: 10px;
 }
 
+.workspace-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.workspace-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid #dbe7f1;
+  background: #f8fafc;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.workspace-action-btn strong {
+  font-size: 15px;
+}
+
+.workspace-action-btn span {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-light);
+}
+
+.workspace-action-btn:hover {
+  border-color: #b7e0c0;
+  background: #f4fbf6;
+}
+
 .profile-row,
 .share-summary-card {
   border: 1px solid var(--border);
@@ -1794,6 +1965,27 @@ body.high-contrast .emergency-btn {
 .profile-row.active {
   border-color: var(--primary);
   background: #edfdf3;
+}
+
+.task-admin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 12px;
+  background: #f8fafc;
+}
+
+.task-admin-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-admin-manage-btn {
+  white-space: nowrap;
+  padding: 10px 14px;
 }
 
 .profile-row-title {
@@ -1896,6 +2088,25 @@ body.high-contrast .emergency-btn {
 
   .image-actions {
     flex-direction: column;
+  }
+
+  .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .task-admin-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .task-admin-manage-btn,
+  .task-manage-btn {
+    width: 100%;
+  }
+
+  .task-manage-btn {
+    position: static;
+    margin-bottom: 12px;
   }
 
   .modal-actions {
