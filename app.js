@@ -524,6 +524,7 @@ class HouChangApp {
             </div>
             <div class="contact-row-actions">
               <button class="btn btn-secondary btn-contact-manage" data-action="call" data-contact-id="${escapeHtml(contact.id)}">拨打</button>
+              <button class="btn btn-secondary btn-contact-manage" data-action="edit" data-contact-id="${escapeHtml(contact.id)}">修改</button>
               ${index === 0 ? "" : `<button class="btn btn-secondary btn-contact-manage" data-action="promote" data-contact-id="${escapeHtml(contact.id)}">设为紧急</button>`}
               <button class="btn btn-danger-soft btn-contact-manage" data-action="delete" data-contact-id="${escapeHtml(contact.id)}">删除</button>
             </div>
@@ -580,6 +581,10 @@ class HouChangApp {
               }
               this.deleteContact(contactId);
             }
+
+            if (action === "edit") {
+              this.editContact(contactId);
+            }
           });
         });
       }
@@ -625,6 +630,64 @@ class HouChangApp {
   deleteContact(contactId) {
     this.contacts = this.contacts.filter(item => item.id !== contactId);
     this.saveContacts();
+    this.openContactManager();
+  }
+
+  editContact(contactId) {
+    const contact = this.contacts.find(item => item.id === contactId);
+    if (!contact) return;
+    
+    const html = `
+      <div class="contact-edit-form">
+        <div class="profile-row">
+          <span class="field-label">姓名</span>
+          <input id="edit-contact-name" type="text" value="${escapeHtml(contact.name)}" placeholder="例如：张老师">
+        </div>
+        <div class="profile-row">
+          <span class="field-label">称呼/职位</span>
+          <input id="edit-contact-role" type="text" value="${escapeHtml(contact.role || "同事")}" placeholder="例如：带教 / 主管 / 同事">
+        </div>
+        <div class="profile-row">
+          <span class="field-label">电话</span>
+          <input id="edit-contact-phone" type="tel" value="${escapeHtml(contact.phone)}" placeholder="例如：13800000000">
+        </div>
+      </div>
+    `;
+
+    this.showModal({
+      title: "修改联系人",
+      html,
+      actions: [
+        { label: "取消", variant: "secondary", onClick: () => this.openContactManager() },
+        { label: "保存修改", variant: "primary", keepOpen: true, onClick: () => this.saveEditedContact(contactId) }
+      ]
+    });
+  }
+
+  saveEditedContact(contactId) {
+    const name = document.getElementById("edit-contact-name")?.value.trim() || "";
+    const role = document.getElementById("edit-contact-role")?.value.trim() || "同事";
+    const phone = document.getElementById("edit-contact-phone")?.value.trim() || "";
+
+    if (!name) {
+      this.infoModal("姓名不能为空", "请输入联系人的姓名。");
+      return;
+    }
+    if (!phone) {
+      this.infoModal("电话不能为空", "请输入联系电话。");
+      return;
+    }
+    if (!/^[0-9+()\s-]+$/.test(phone)) {
+      this.infoModal("电话号码格式不对", "请只输入数字，或使用 +、-、空格、括号这些常见电话符号。");
+      return;
+    }
+
+    const index = this.contacts.findIndex(item => item.id === contactId);
+    if (index === -1) return;
+
+    this.contacts[index] = { ...this.contacts[index], name, role, phone };
+    this.saveContacts();
+    this.infoModal("修改成功", "联系人信息已更新。");
     this.openContactManager();
   }
 
