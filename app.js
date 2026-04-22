@@ -1225,6 +1225,20 @@ class HouChangApp {
   }
 
   bindEvents() {
+    // 1. 注册离线 Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW注册失败', err));
+    }
+
+    // 2. 修复 Web Audio API 必须由用户交互激活的限制
+    document.body.addEventListener('click', () => {
+      const ctx = getAudioContext();
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume();
+      }
+    }, { once: true }); // 只触发一次即可激活音频上下文
+
+    // ... 下面是你原本的代码
     document.getElementById("task-grid").addEventListener("click", event => {
       const manageButton = event.target.closest(".task-manage-btn");
       if (manageButton) {
@@ -1246,7 +1260,7 @@ class HouChangApp {
 
     document.getElementById("current-profile-btn").addEventListener("click", () => this.openProfileManager());
     document.getElementById("manage-profile-btn").addEventListener("click", () => this.openProfileManager());
-    document.getElementById("coach-workspace-btn").addEventListener("click", () => this.openCoachWorkspace());
+    document.getElementById("coach-workspace-btn").addEventListener("click", () => this.verifyAndOpenCoachWorkspace());
     document.getElementById("share-progress-btn").addEventListener("click", () => this.openShareProgress());
     document.getElementById("video-idea-btn").addEventListener("click", () => this.openVideoIdea());
     document.getElementById("resume-btn").addEventListener("click", () => {
@@ -1488,6 +1502,37 @@ class HouChangApp {
     this.goHome();
   }
 
+  verifyAndOpenCoachWorkspace() {
+    // 随机生成一道10以内的加法题作为防误触锁
+    const num1 = Math.floor(Math.random() * 5) + 1;
+    const num2 = Math.floor(Math.random() * 5) + 1;
+
+    this.showModal({
+      title: "进入带教工作台",
+      html: `
+        <p style="margin-bottom: 12px; color: var(--text-light);">为防止误触，请输入正确答案进入：</p>
+        <label class="field-label" style="font-size: 20px;">${num1} + ${num2} = ?</label>
+        <input type="number" id="coach-lock-input" class="editor-input" placeholder="请输入答案">
+      `,
+      actions: [
+        { label: "取消", variant: "secondary", onClick: () => {} },
+        {
+          label: "确认进入", variant: "primary", keepOpen: true, onClick: () => {
+            const input = document.getElementById("coach-lock-input");
+            if (parseInt(input.value) === num1 + num2) {
+              this.closeModal();
+              this.openCoachWorkspace();
+            } else {
+              input.value = "";
+              input.placeholder = "答案错误，请重试";
+              input.style.borderColor = "var(--danger)";
+            }
+          }
+        }
+      ]
+    });
+  }
+
   openCoachWorkspace() {
     const profile = this.getActiveProfile();
     this.showModal({
@@ -1724,13 +1769,27 @@ class HouChangApp {
     this.deleteCustomTask(taskId);
   }
 
-  deleteCustomTask(taskId) {
+  async deleteCustomTask(taskId) {
     const index = this.findCustomTaskIndex(taskId);
     if (index < 0) return;
+    const task = this.customTasks[index];
+
+    // 【新增】清理 IndexedDB 中关联的图片和视频，防止占用设备空间
+    if (this.imageStoreAvailable && task.steps) {
+      for (let i = 0; i < task.steps.length; i++) {
+        const step = task.steps[i];
+        if (step.userImageKey) {
+          try { await deleteStoredImage(`${this.activeProfileId}-${step.userImageKey}`); } catch (e) {}
+        }
+        const videoKey = `video-${this.activeProfileId}-${taskId}-step-${i}`;
+        try { await deleteStoredImage(videoKey); } catch (e) {}
+      }
+    }
+
     this.customTasks.splice(index, 1);
     this.clearTaskProgressIfNeeded(taskId);
     this.saveAndRefreshCustomTasks();
-    this.infoModal("任务已删除", "这个自定义任务已经从当前使用者的列表里移除了。");
+    this.infoModal("任务已删除", "这个自定义任务已经从列表移除，关联的参考图片和视频也已清理干净。");
   }
 
   duplicateCustomTask(taskId) {
@@ -2761,19 +2820,26 @@ class HouChangApp {
     if (this.isMobile && !this.voiceActivated && !force) {
       this.voiceActivated = true;
     }
+
+    // 强制唤醒加载设备语音包（修复 iOS 首次无声 Bug）
+    this.synth.getVoices();
+
     const settings = this.getVoiceSettings();
     this.currentUtterance = new SpeechSynthesisUtterance(text);
     this.currentUtterance.lang = settings.lang;
     this.currentUtterance.rate = settings.rate;
     this.currentUtterance.pitch = 1;
+
     const voiceBtn = document.getElementById("voice-btn");
     if (voiceBtn) voiceBtn.classList.add("speaking");
+
     this.currentUtterance.onend = () => {
       if (voiceBtn) voiceBtn.classList.remove("speaking");
     };
     this.currentUtterance.onerror = () => {
       if (voiceBtn) voiceBtn.classList.remove("speaking");
     };
+
     this.synth.speak(this.currentUtterance);
   }
 
