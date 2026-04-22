@@ -2692,17 +2692,8 @@ class HouChangApp {
 
   speak(text, force = false) {
     this.stopSpeaking();
-    if (!this.synth || typeof window.SpeechSynthesisUtterance === "undefined") {
-      if (this.isMobile) {
-        this.showMobileVoiceHint();
-      }
-      return;
-    }
+    if (!this.synth || typeof window.SpeechSynthesisUtterance === "undefined") return;
     if (this.isMobile && !this.voiceActivated && !force) {
-      this.showMobileVoiceHint();
-      return;
-    }
-    if (!this.voiceActivated) {
       this.voiceActivated = true;
     }
     const settings = this.getVoiceSettings();
@@ -2711,47 +2702,14 @@ class HouChangApp {
     this.currentUtterance.rate = settings.rate;
     this.currentUtterance.pitch = 1;
     const voiceBtn = document.getElementById("voice-btn");
-    voiceBtn.classList.add("speaking");
-    this.currentUtterance.onend = () => voiceBtn.classList.remove("speaking");
-    this.currentUtterance.onerror = () => voiceBtn.classList.remove("speaking");
+    if (voiceBtn) voiceBtn.classList.add("speaking");
+    this.currentUtterance.onend = () => {
+      if (voiceBtn) voiceBtn.classList.remove("speaking");
+    };
+    this.currentUtterance.onerror = () => {
+      if (voiceBtn) voiceBtn.classList.remove("speaking");
+    };
     this.synth.speak(this.currentUtterance);
-  }
-
-  showMobileVoiceHint() {
-    const hint = document.createElement("div");
-    hint.id = "mobile-voice-hint";
-    hint.style.cssText = `
-      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      background: white; padding: 24px; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-      z-index: 10000; text-align: center; max-width: 320px; font-family: -apple-system, sans-serif;
-    `;
-    hint.innerHTML = `
-      <div style="font-size: 48px; margin-bottom: 12px;">🔊</div>
-      <h3 style="margin: 0 0 12px 0; color: #1f2937;">启用语音播报</h3>
-      <p style="margin: 0 0 20px 0; color: #6b7280; font-size: 14px; line-height: 1.5;">
-        点击下方按钮启用语音功能，之后就可以自动朗读了
-      </p>
-      <button id="activate-voice-btn" style="
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white; border: none; padding: 12px 32px; border-radius: 25px;
-        font-size: 16px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(102,126,234,0.4);
-        transition: transform 0.2s;
-      " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-        🔊 启用语音
-      </button>
-    `;
-    document.body.appendChild(hint);
-    document.getElementById("activate-voice-btn").addEventListener("click", () => {
-      this.voiceActivated = true;
-      const testUtterance = new SpeechSynthesisUtterance("语音已启用");
-      testUtterance.lang = "zh-CN";
-      testUtterance.rate = 0.88;
-      this.synth.speak(testUtterance);
-      setTimeout(() => {
-        if (hint.parentNode) hint.parentNode.removeChild(hint);
-        if (text) this.speak(text, true);
-      }, 500);
-    });
   }
 
   stopSpeaking() {
