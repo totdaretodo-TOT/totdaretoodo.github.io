@@ -3262,6 +3262,104 @@ body.dark-mode .comm-script-content {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* 图标选择器 */
+.icon-picker-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.icon-picker-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  width: 90%;
+  max-width: 400px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.icon-picker-card h3 {
+  margin: 0 0 20px 0;
+  color: #374151;
+  font-size: 18px;
+  text-align: center;
+}
+
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.icon-item {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.icon-item:hover {
+  background: #f3f4f6;
+  transform: scale(1.1);
+}
+
+.icon-item.selected {
+  border-color: #10b981;
+  background: #d1fae5;
+}
+
+.icon-input-container {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.icon-input {
+  flex: 1;
+  max-width: none;
+}
+
+.icon-select-btn {
+  white-space: nowrap;
+}
+
+/* 响应式图标选择器 */
+@media (max-width: 768px) {
+  .icon-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+  
+  .icon-item {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+  
+  .icon-input-container {
+    flex-direction: column;
+  }
+  
+  .icon-select-btn {
+    width: 100%;
+  }
+}
+
 .step-editor-card h3 {
   margin: 0 0 20px 0;
   font-size: 20px;

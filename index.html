@@ -859,11 +859,25 @@
 
       <div class="add-category-form">
         <input type="text" id="new-category-name" placeholder="新分类名称" class="editor-input">
-        <input type="text" id="new-category-icon" placeholder="图标（可选，如：🏪）" class="editor-input icon-input">
+        <div class="icon-input-container">
+          <input type="text" id="new-category-icon" placeholder="图标（可选）" class="editor-input icon-input">
+          <button class="btn btn-secondary btn-sm icon-select-btn" id="icon-select-btn">选择图标</button>
+        </div>
         <button class="btn btn-primary btn-sm" id="add-category-btn">+ 添加分类</button>
       </div>
 
       <button class="btn btn-secondary category-manager-close-btn" id="category-manager-close-btn">关闭</button>
+    </div>
+  </div>
+
+  <!-- 图标选择器弹窗 -->
+  <div class="icon-picker-overlay hidden" id="icon-picker-overlay">
+    <div class="icon-picker-card">
+      <h3>选择图标</h3>
+      <div class="icon-grid" id="icon-grid">
+        <!-- 动态生成图标 -->
+      </div>
+      <button class="btn btn-secondary icon-picker-close-btn" id="icon-picker-close-btn">关闭</button>
     </div>
   </div>
 

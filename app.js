@@ -1332,6 +1332,8 @@ class HouChangApp {
     document.getElementById("manage-categories-btn")?.addEventListener("click", () => this.openCategoryManager());
     document.getElementById("category-manager-close-btn")?.addEventListener("click", () => this.closeCategoryManager());
     document.getElementById("add-category-btn")?.addEventListener("click", () => this.addCustomCategory());
+    document.getElementById("icon-select-btn")?.addEventListener("click", () => this.openIconPicker());
+    document.getElementById("icon-picker-close-btn")?.addEventListener("click", () => this.closeIconPicker());
     document.getElementById("custom-category-list")?.addEventListener("click", (e) => {
       const deleteBtn = e.target.closest(".category-delete-btn");
       if (deleteBtn) this.deleteCustomCategory(deleteBtn.dataset.id);
@@ -3983,6 +3985,44 @@ class HouChangApp {
 
   closeCategoryManager() {
     document.getElementById("category-manager-overlay").classList.add("hidden");
+  }
+
+  // 图标数据
+  iconData = [
+    "📋", "📁", "📂", "📅", "📆", "📇", "📈", "📉",
+    "🏠", "🏢", "🏥", "🏪", "🏫", "🏬", "🏭", "🏯",
+    "🍎", "🍐", "🍊", "🍋", "🍌", "🍉", "🍇", "🍓",
+    "🍈", "🍒", "🍑", "🍍", "🥭", "🍎", "🍏", "🍐",
+    "🧹", "🧺", "🧻", "🧼", "🧽", "🧴", "🧰", "🧱",
+    "💼", "📱", "💻", "⌨️", "🖱️", "🖨️", "📞", "📟",
+    "🍵", "☕", "🍽️", "🍴", "🍷", "🥃", "🍺", "🍻",
+    "🚶", "🚗", "🚌", "🚕", "🚙", "🚚", "🚛", "🚜"
+  ];
+
+  // 打开图标选择器
+  openIconPicker() {
+    const iconGrid = document.getElementById("icon-grid");
+    iconGrid.innerHTML = this.iconData.map(icon => `
+      <div class="icon-item" data-icon="${icon}">
+        ${icon}
+      </div>
+    `).join('');
+
+    // 添加图标点击事件
+    iconGrid.querySelectorAll(".icon-item").forEach(item => {
+      item.addEventListener("click", () => {
+        const icon = item.dataset.icon;
+        document.getElementById("new-category-icon").value = icon;
+        this.closeIconPicker();
+      });
+    });
+
+    document.getElementById("icon-picker-overlay").classList.remove("hidden");
+  }
+
+  // 关闭图标选择器
+  closeIconPicker() {
+    document.getElementById("icon-picker-overlay").classList.add("hidden");
   }
 
   renderCustomCategoryList() {
