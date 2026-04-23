@@ -89,6 +89,10 @@ function handleShareQrError(image) {
   if (fallback) fallback.classList.remove("hidden");
 }
 
+/**
+ * 打开图像数据库
+ * @returns {Promise<IDBDatabase>} 返回图像数据库实例
+ */
 function openImageDatabase() {
   return new Promise((resolve, reject) => {
     if (!window.indexedDB) {
@@ -107,61 +111,111 @@ function openImageDatabase() {
   });
 }
 
+/**
+ * 获取存储的图像
+ * @param {string} key 图像的键
+ * @returns {Promise<string|null>} 返回图像的Base64编码，或null如果不存在
+ */
 async function getStoredImage(key) {
-  const db = await openImageDatabase();
-  return new Promise((resolve, reject) => {
-    const request = db.transaction(IMAGE_STORE_NAME, "readonly").objectStore(IMAGE_STORE_NAME).get(key);
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error || new Error("Cannot read image"));
-  });
+  try {
+    const db = await openImageDatabase();
+    return new Promise((resolve, reject) => {
+      const request = db.transaction(IMAGE_STORE_NAME, "readonly").objectStore(IMAGE_STORE_NAME).get(key);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error || new Error("读取图片失败"));
+    });
+  } catch (error) {
+    console.error("获取存储图片失败:", error);
+    return null;
+  }
 }
 
+/**
+ * 存储图像
+ * @param {string} key 图像的键
+ * @param {string} value 图像的Base64编码
+ * @returns {Promise<void>}
+ */
 async function setStoredImage(key, value) {
-  const db = await openImageDatabase();
-  return new Promise((resolve, reject) => {
-    const request = db.transaction(IMAGE_STORE_NAME, "readwrite").objectStore(IMAGE_STORE_NAME).put(value, key);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error || new Error("Cannot save image"));
-  });
+  try {
+    const db = await openImageDatabase();
+    return new Promise((resolve, reject) => {
+      const request = db.transaction(IMAGE_STORE_NAME, "readwrite").objectStore(IMAGE_STORE_NAME).put(value, key);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error || new Error("保存图片失败"));
+    });
+  } catch (error) {
+    console.error("存储图片失败:", error);
+    throw error;
+  }
 }
 
+/**
+ * 删除存储的图像
+ * @param {string} key 图像的键
+ * @returns {Promise<void>}
+ */
 async function deleteStoredImage(key) {
-  const db = await openImageDatabase();
-  return new Promise((resolve, reject) => {
-    const request = db.transaction(IMAGE_STORE_NAME, "readwrite").objectStore(IMAGE_STORE_NAME).delete(key);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error || new Error("Cannot delete image"));
-  });
+  try {
+    const db = await openImageDatabase();
+    return new Promise((resolve, reject) => {
+      const request = db.transaction(IMAGE_STORE_NAME, "readwrite").objectStore(IMAGE_STORE_NAME).delete(key);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error || new Error("删除图片失败"));
+    });
+  } catch (error) {
+    console.error("删除存储图片失败:", error);
+    return;
+  }
 }
 
+/**
+ * 将文件转换为Image对象
+ * @param {File} file 要转换的文件
+ * @returns {Promise<HTMLImageElement>} 返回Image对象
+ */
 function fileToImage(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
       img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error("Cannot parse image"));
+      img.onerror = () => reject(new Error("解析图片失败"));
       img.src = reader.result;
     };
-    reader.onerror = () => reject(new Error("Cannot read file"));
+    reader.onerror = () => reject(new Error("读取文件失败"));
     reader.readAsDataURL(file);
   });
 }
 
+/**
+ * 压缩图像
+ * @param {File} file 要压缩的图像文件
+ * @returns {Promise<string>} 返回压缩后的图像Base64编码
+ */
 async function compressImage(file) {
-  const img = await fileToImage(file);
-  const maxSide = 1280;
-  let { width, height } = img;
-  if (width > maxSide || height > maxSide) {
-    const ratio = Math.min(maxSide / width, maxSide / height);
-    width = Math.round(width * ratio);
-    height = Math.round(height * ratio);
+  try {
+    const img = await fileToImage(file);
+    const maxSide = 1280;
+    let { width, height } = img;
+    if (width > maxSide || height > maxSide) {
+      const ratio = Math.min(maxSide / width, maxSide / height);
+      width = Math.round(width * ratio);
+      height = Math.round(height * ratio);
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("创建画布上下文失败");
+    }
+    ctx.drawImage(img, 0, 0, width, height);
+    return canvas.toDataURL("image/jpeg", 0.82);
+  } catch (error) {
+    console.error("压缩图片失败:", error);
+    throw error;
   }
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  canvas.getContext("2d").drawImage(img, 0, 0, width, height);
-  return canvas.toDataURL("image/jpeg", 0.82);
 }
 
 class HouChangApp {
@@ -195,19 +249,39 @@ class HouChangApp {
     this.init();
   }
 
+/**
+ * 初始化应用
+ * @async
+ */
   async init() {
-    await this.checkImageStore();
-    await this.checkPrivacyAgreement();
-    this.loadDisplayMode();
-    this.reloadProfileScopedData();
-    this.bindEvents();
-    this.renderTaskGrid();
-    this.updateProfileChip();
-    this.updateNavState();
-    this.updateStreakBadge();
-    this.updateResumeCard();
-    this.promptResumeIfNeeded();
-    this.showIncomingHashViewIfNeeded();
+    // 显示加载屏幕
+    const loadingScreen = document.getElementById("loading-screen");
+    if (loadingScreen) {
+      loadingScreen.style.display = "flex";
+    }
+    
+    try {
+      await this.checkImageStore();
+      await this.checkPrivacyAgreement();
+      this.loadDisplayMode();
+      this.reloadProfileScopedData();
+      this.bindEvents();
+      this.renderTaskGrid();
+      this.updateProfileChip();
+      this.updateNavState();
+      this.updateStreakBadge();
+      this.updateResumeCard();
+      this.promptResumeIfNeeded();
+      this.showIncomingHashViewIfNeeded();
+    } catch (error) {
+      console.error("初始化失败:", error);
+      this.infoModal("初始化失败", "应用初始化时出现错误，请刷新页面重试。");
+    } finally {
+      // 隐藏加载屏幕
+      if (loadingScreen) {
+        loadingScreen.style.display = "none";
+      }
+    }
   }
 
   async checkPrivacyAgreement() {
@@ -277,25 +351,41 @@ class HouChangApp {
       const saved = localStorage.getItem("houchang-profiles");
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (error) {
-      console.log("Cannot load profiles");
+      console.error("加载用户配置失败:", error);
     }
     const defaults = [{ id: "profile-default", name: "默认使用者" }];
-    localStorage.setItem("houchang-profiles", JSON.stringify(defaults));
+    try {
+      localStorage.setItem("houchang-profiles", JSON.stringify(defaults));
+    } catch (error) {
+      console.error("保存默认配置失败:", error);
+    }
     return defaults;
   }
 
   saveProfiles() {
-    localStorage.setItem("houchang-profiles", JSON.stringify(this.profiles));
+    try {
+      localStorage.setItem("houchang-profiles", JSON.stringify(this.profiles));
+    } catch (error) {
+      console.error("保存用户配置失败:", error);
+    }
   }
 
   loadActiveProfileId() {
-    const saved = localStorage.getItem("houchang-active-profile");
-    if (saved && this.profiles.some(profile => profile.id === saved)) return saved;
-    const fallback = this.profiles[0].id;
-    localStorage.setItem("houchang-active-profile", fallback);
+    try {
+      const saved = localStorage.getItem("houchang-active-profile");
+      if (saved && this.profiles.some(profile => profile.id === saved)) return saved;
+    } catch (error) {
+      console.error("加载活跃用户ID失败:", error);
+    }
+    const fallback = this.profiles[0]?.id || "profile-default";
+    try {
+      localStorage.setItem("houchang-active-profile", fallback);
+    } catch (error) {
+      console.error("保存活跃用户ID失败:", error);
+    }
     return fallback;
   }
 
@@ -312,23 +402,30 @@ class HouChangApp {
   }
 
   loadScopedPreference(name, legacyKey, defaultValue) {
-    const scopedKey = this.getPreferenceKey(name);
-    const scopedValue = localStorage.getItem(scopedKey);
-    if (scopedValue !== null) return scopedValue;
+    try {
+      const scopedKey = this.getPreferenceKey(name);
+      const scopedValue = localStorage.getItem(scopedKey);
+      if (scopedValue !== null) return scopedValue;
 
-    if (legacyKey) {
-      const legacyValue = localStorage.getItem(legacyKey);
-      if (legacyValue !== null) {
-        localStorage.setItem(scopedKey, legacyValue);
-        return legacyValue;
+      if (legacyKey) {
+        const legacyValue = localStorage.getItem(legacyKey);
+        if (legacyValue !== null) {
+          localStorage.setItem(scopedKey, legacyValue);
+          return legacyValue;
+        }
       }
+    } catch (error) {
+      console.error(`加载偏好设置 ${name} 失败:`, error);
     }
-
     return defaultValue;
   }
 
   saveScopedPreference(name, value) {
-    localStorage.setItem(this.getPreferenceKey(name), String(value));
+    try {
+      localStorage.setItem(this.getPreferenceKey(name), String(value));
+    } catch (error) {
+      console.error(`保存偏好设置 ${name} 失败:`, error);
+    }
   }
 
   reloadProfileScopedData() {
@@ -340,28 +437,43 @@ class HouChangApp {
   loadStats() {
     try {
       const saved = localStorage.getItem(this.getScopedKey("houchang-stats"));
-      if (saved) return { ...this.createEmptyStats(), ...JSON.parse(saved) };
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...this.createEmptyStats(), ...parsed };
+      }
     } catch (error) {
-      console.log("Cannot load stats");
+      console.error("加载统计数据失败:", error);
     }
     return this.createEmptyStats();
   }
 
   saveStats() {
-    localStorage.setItem(this.getScopedKey("houchang-stats"), JSON.stringify(this.stats));
+    try {
+      localStorage.setItem(this.getScopedKey("houchang-stats"), JSON.stringify(this.stats));
+    } catch (error) {
+      console.error("保存统计数据失败:", error);
+    }
   }
 
   loadCustomTasks() {
     try {
       const saved = localStorage.getItem(this.getScopedKey("houchang-custom-tasks"));
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed : [];
+      }
     } catch (error) {
-      return [];
+      console.error("加载自定义任务失败:", error);
     }
+    return [];
   }
 
   saveCustomTasks() {
-    localStorage.setItem(this.getScopedKey("houchang-custom-tasks"), JSON.stringify(this.customTasks));
+    try {
+      localStorage.setItem(this.getScopedKey("houchang-custom-tasks"), JSON.stringify(this.customTasks));
+    } catch (error) {
+      console.error("保存自定义任务失败:", error);
+    }
   }
 
   getAllTasks() {
@@ -440,7 +552,9 @@ class HouChangApp {
           return parsed;
         }
       }
-    } catch (error) {}
+    } catch (error) {
+      console.error("加载联系人失败:", error);
+    }
     return [
       { id: "c1", name: "值班主管", phone: "138-0000-0001", role: "主管" },
       { id: "c2", name: "带教老师", phone: "138-0000-0002", role: "带教" },
@@ -449,7 +563,11 @@ class HouChangApp {
   }
 
   saveContacts() {
-    localStorage.setItem(this.getScopedKey("houchang-contacts"), JSON.stringify(this.contacts));
+    try {
+      localStorage.setItem(this.getScopedKey("houchang-contacts"), JSON.stringify(this.contacts));
+    } catch (error) {
+      console.error("保存联系人失败:", error);
+    }
   }
 
   showContactList() {
@@ -712,24 +830,39 @@ class HouChangApp {
   loadProgress() {
     try {
       const saved = localStorage.getItem(this.getScopedKey("houchang-progress"));
-      return saved ? JSON.parse(saved) : null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // 验证数据结构
+        if (parsed && typeof parsed === 'object' && 'taskId' in parsed && 'stepIndex' in parsed) {
+          return parsed;
+        }
+      }
     } catch (error) {
-      return null;
+      console.error("加载进度失败:", error);
     }
+    return null;
   }
 
   saveProgress() {
     if (!this.currentTask) return;
-    localStorage.setItem(this.getScopedKey("houchang-progress"), JSON.stringify({
-      taskId: this.currentTask.id,
-      stepIndex: this.currentStepIndex
-    }));
-    this.updateResumeCard();
+    try {
+      localStorage.setItem(this.getScopedKey("houchang-progress"), JSON.stringify({
+        taskId: this.currentTask.id,
+        stepIndex: this.currentStepIndex
+      }));
+      this.updateResumeCard();
+    } catch (error) {
+      console.error("保存进度失败:", error);
+    }
   }
 
   clearProgress() {
-    localStorage.removeItem(this.getScopedKey("houchang-progress"));
-    this.updateResumeCard();
+    try {
+      localStorage.removeItem(this.getScopedKey("houchang-progress"));
+      this.updateResumeCard();
+    } catch (error) {
+      console.error("清除进度失败:", error);
+    }
   }
 
   updateResumeCard() {
@@ -1224,21 +1357,39 @@ class HouChangApp {
     `).join("");
   }
 
+/**
+ * 绑定所有事件监听器
+ */
   bindEvents() {
-    // 1. 注册离线 Service Worker
+    this.bindServiceWorker();
+    this.bindAudioContextActivation();
+    this.bindHomePageEvents();
+    this.bindTaskPageEvents();
+    this.bindStatsPageEvents();
+    this.bindImageVideoEvents();
+    this.bindSettingsEvents();
+    this.bindHelpAndCommunicationEvents();
+    this.bindModalEvents();
+    this.bindTaskEditorEvents();
+    this.bindCategoryManagerEvents();
+  }
+
+  bindServiceWorker() {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW注册失败', err));
     }
+  }
 
-    // 2. 修复 Web Audio API 必须由用户交互激活的限制
+  bindAudioContextActivation() {
     document.body.addEventListener('click', () => {
       const ctx = getAudioContext();
       if (ctx && ctx.state === 'suspended') {
         ctx.resume();
       }
-    }, { once: true }); // 只触发一次即可激活音频上下文
+    }, { once: true });
+  }
 
-    // ... 下面是你原本的代码
+  bindHomePageEvents() {
     document.getElementById("task-grid").addEventListener("click", event => {
       const manageButton = event.target.closest(".task-manage-btn");
       if (manageButton) {
@@ -1267,17 +1418,27 @@ class HouChangApp {
       const saved = this.loadProgress();
       if (saved) this.resumeTask(saved.taskId, saved.stepIndex);
     });
+  }
 
+  bindTaskPageEvents() {
     document.getElementById("back-btn").addEventListener("click", () => this.goHome());
     document.getElementById("done-btn").addEventListener("click", () => this.completeStep());
     document.getElementById("emergency-btn").addEventListener("click", () => this.handleEmergencyCall());
     document.getElementById("assist-close-btn").addEventListener("click", () => this.hideAssist());
     document.getElementById("restart-btn").addEventListener("click", () => this.restartTask());
     document.getElementById("home-btn").addEventListener("click", () => this.goHome());
+    document.getElementById("voice-btn").addEventListener("click", () => this.speakCurrentStep());
+    
+    // 新增功能事件绑定
+    document.getElementById("prev-step-btn").addEventListener("click", () => this.goToPrevStep());
+    document.getElementById("restart-task-btn").addEventListener("click", () => this.confirmRestartTask());
+    document.getElementById("problem-btn").addEventListener("click", () => this.showProblemPanel());
+  }
+
+  bindStatsPageEvents() {
     document.getElementById("nav-home").addEventListener("click", () => this.goHome());
     document.getElementById("nav-stats").addEventListener("click", () => this.showStats());
     document.getElementById("stats-back-btn").addEventListener("click", () => this.goHome());
-    document.getElementById("voice-btn").addEventListener("click", () => this.speakCurrentStep());
     document.getElementById("clear-stats-btn").addEventListener("click", async () => {
       const confirmed = await this.confirmModal("清除记录", "要清除当前使用者的完成记录和卡点统计吗？");
       if (confirmed) {
@@ -1287,7 +1448,9 @@ class HouChangApp {
         this.updateStreakBadge();
       }
     });
+  }
 
+  bindImageVideoEvents() {
     document.getElementById("upload-image-btn").addEventListener("click", () => document.getElementById("step-image-input").click());
     document.getElementById("annotate-image-btn").addEventListener("click", () => this.openImageAnnotator());
     document.getElementById("replace-image-btn").addEventListener("click", () => document.getElementById("step-image-input").click());
@@ -1297,15 +1460,15 @@ class HouChangApp {
     document.getElementById("upload-video-btn").addEventListener("click", () => document.getElementById("step-video-input").click());
     document.getElementById("remove-video-btn").addEventListener("click", () => this.removeCurrentStepVideo());
     document.getElementById("step-video-input").addEventListener("change", event => this.handleVideoSelected(event));
+  }
 
+  bindSettingsEvents() {
     document.getElementById("mode-toggle-btn").addEventListener("click", () => this.toggleDisplayMode());
     document.getElementById("voice-settings-btn").addEventListener("click", () => this.openVoiceSettings());
     document.getElementById("package-file-input").addEventListener("change", event => this.handleTeachingPackageFileSelected(event));
+  }
 
-    // 新增功能事件绑定
-    document.getElementById("prev-step-btn").addEventListener("click", () => this.goToPrevStep());
-    document.getElementById("restart-task-btn").addEventListener("click", () => this.confirmRestartTask());
-    document.getElementById("problem-btn").addEventListener("click", () => this.showProblemPanel());
+  bindHelpAndCommunicationEvents() {
     document.getElementById("problem-cancel-btn").addEventListener("click", () => this.hideProblemPanel());
     document.getElementById("comm-close-btn").addEventListener("click", () => this.hideCommunicationPanel());
     document.getElementById("calm-open-btn").addEventListener("click", () => this.openCalmMode());
@@ -1328,20 +1491,26 @@ class HouChangApp {
     document.querySelectorAll(".btn-problem-option").forEach(btn => {
       btn.addEventListener("click", () => this.handleProblemSelection(btn.dataset.problem));
     });
+  }
 
+  bindModalEvents() {
     // 点击遮罩层关闭弹窗
     this.modalOverlay?.addEventListener("click", (e) => {
       if (e.target === this.modalOverlay) {
         this.closeModal();
       }
     });
+  }
 
+  bindTaskEditorEvents() {
     // 可视化任务编辑器事件（操作者视角模式）
     document.getElementById("task-editor-close-btn")?.addEventListener("click", () => this.closeTaskEditor());
     document.getElementById("editor-cancel-btn")?.addEventListener("click", () => this.closeTaskEditor());
     document.getElementById("editor-save-btn")?.addEventListener("click", () => this.saveTaskFromEditor());
     document.getElementById("add-step-btn")?.addEventListener("click", () => this.addNewStep());
+  }
 
+  bindCategoryManagerEvents() {
     // 分类管理事件
     document.getElementById("manage-categories-btn")?.addEventListener("click", () => this.openCategoryManager());
     document.getElementById("category-manager-close-btn")?.addEventListener("click", () => this.closeCategoryManager());
@@ -2621,7 +2790,7 @@ class HouChangApp {
     document.getElementById("step-instruction").textContent = step.instruction;
     document.getElementById("step-detail").textContent = step.detail;
     document.getElementById("step-why").textContent = `为什么要做：${step.whyItMatters}`;
-    document.getElementById("step-image").innerHTML = `<use href="#${step.image || "icon-check"}"/>`;
+    document.getElementById("step-image").innerHTML = `<use href="#${escapeHtml(step.image || "icon-check")}"/>`;
     this.currentUserImage = await this.loadCurrentStepImage();
     this.renderStepImageState(step);
     this.renderStepVideo();
@@ -2679,13 +2848,26 @@ class HouChangApp {
       this.infoModal("当前无法保存图片", "这个浏览器环境暂时不能保存图片，页面会继续使用默认示意图。");
       return;
     }
+    
+    // 显示加载状态
+    const uploadBtn = document.getElementById("upload-image-btn");
+    const originalText = uploadBtn.textContent;
+    uploadBtn.textContent = "上传中...";
+    uploadBtn.disabled = true;
+    
     try {
       const compressed = await compressImage(file);
       await setStoredImage(this.getCurrentImageKey(), compressed);
       this.currentUserImage = compressed;
       this.renderStepImageState(this.getCurrentStep());
+      this.infoModal("图片上传成功", "参考图片已保存，你可以在步骤中查看。");
     } catch (error) {
+      console.error("图片处理失败:", error);
       this.infoModal("图片保存失败", "这张图片没有保存成功，你可以换一张再试。");
+    } finally {
+      // 恢复按钮状态
+      uploadBtn.textContent = originalText;
+      uploadBtn.disabled = false;
     }
   }
 
@@ -2693,12 +2875,28 @@ class HouChangApp {
     if (!this.imageStoreAvailable) return;
     const confirmed = await this.confirmModal("删除参考图", "要删除这一步的参考图片吗？");
     if (!confirmed) return;
+    
+    // 显示加载状态
+    const removeBtn = document.getElementById("remove-image-btn");
+    if (removeBtn) {
+      removeBtn.textContent = "删除中...";
+      removeBtn.disabled = true;
+    }
+    
     try {
       await deleteStoredImage(this.getCurrentImageKey());
       this.currentUserImage = null;
       this.renderStepImageState(this.getCurrentStep());
+      this.infoModal("删除成功", "参考图片已删除。");
     } catch (error) {
+      console.error("删除图片失败:", error);
       this.infoModal("删除失败", "这张图片暂时没有删除成功。");
+    } finally {
+      // 恢复按钮状态
+      if (removeBtn) {
+        removeBtn.textContent = "删除图片";
+        removeBtn.disabled = false;
+      }
     }
   }
 
@@ -2730,6 +2928,18 @@ class HouChangApp {
       this.infoModal("视频文件太大", "请上传小于 50MB 的视频。");
       return;
     }
+    if (!this.imageStoreAvailable) {
+      this.infoModal("当前无法保存视频", "这个浏览器环境暂时不能保存视频，页面会继续使用默认教程。");
+      return;
+    }
+    
+    // 显示加载状态
+    const uploadBtn = document.querySelector("[data-file-input='video']").parentElement.querySelector("button") || document.getElementById("upload-video-btn");
+    if (uploadBtn) {
+      uploadBtn.textContent = "上传中...";
+      uploadBtn.disabled = true;
+    }
+    
     try {
       const videoUrl = URL.createObjectURL(file);
       const video = document.getElementById("step-video");
@@ -2740,24 +2950,47 @@ class HouChangApp {
       const removeBtn = document.getElementById("remove-video-btn");
       if (removeBtn) removeBtn.style.display = "inline-block";
       await setStoredImage(this.getCurrentVideoKey(), videoUrl);
+      this.infoModal("视频上传成功", "视频教程已保存，你可以在步骤中查看。");
     } catch (error) {
+      console.error("视频处理失败:", error);
       this.infoModal("视频保存失败", "这段视频没有保存成功，你可以换一段再试。");
+    } finally {
+      // 恢复按钮状态
+      if (uploadBtn) {
+        uploadBtn.textContent = "上传视频";
+        uploadBtn.disabled = false;
+      }
     }
   }
 
   async removeCurrentStepVideo() {
     const confirmed = await this.confirmModal("删除视频", "要删除这一步的视频教程吗？");
     if (!confirmed) return;
+    
+    // 显示加载状态
+    const removeBtn = document.getElementById("remove-video-btn");
+    if (removeBtn) {
+      removeBtn.textContent = "删除中...";
+      removeBtn.disabled = true;
+    }
+    
     try {
       const video = document.getElementById("step-video");
       if (video) video.src = "";
-      const removeBtn = document.getElementById("remove-video-btn");
       if (removeBtn) removeBtn.style.display = "none";
       if (this.imageStoreAvailable) {
         await deleteStoredImage(this.getCurrentVideoKey());
       }
+      this.infoModal("删除成功", "视频教程已删除。");
     } catch (error) {
+      console.error("删除视频失败:", error);
       this.infoModal("删除失败", "这段视频暂时没有删除成功。");
+    } finally {
+      // 恢复按钮状态
+      if (removeBtn) {
+        removeBtn.textContent = "删除视频";
+        removeBtn.disabled = false;
+      }
     }
   }
 
