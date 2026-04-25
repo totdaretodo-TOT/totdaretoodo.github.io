@@ -22,6 +22,17 @@ const IMAGE_STORE_NAME = "stepImages";
 const TEACHING_PACKAGE_VERSION = 1;
 const FULL_BACKUP_VERSION = 1;
 const PLACEHOLDER_CONTACT_PHONES = new Set(["138-0000-0001", "138-0000-0002", "138-0000-0003"]);
+const VIDEO_ACCEPT_TYPES = "video/mp4,video/webm,video/ogg,video/quicktime,video/x-m4v,video/3gpp,video/3gpp2,.mp4,.webm,.mov,.m4v,.ogv,.ogg,.3gp,.3g2";
+const SUPPORTED_VIDEO_MIME_TYPES = new Set([
+  "video/mp4",
+  "video/webm",
+  "video/ogg",
+  "video/quicktime",
+  "video/x-m4v",
+  "video/3gpp",
+  "video/3gpp2"
+]);
+const SUPPORTED_VIDEO_EXTENSIONS = [".mp4", ".webm", ".mov", ".m4v", ".ogv", ".ogg", ".3gp", ".3g2"];
 const platform = window.HouChangPlatform || {};
 const appStorage = platform.storage || {
   getString: (key, fallback = "") => {
@@ -235,6 +246,17 @@ function fileToText(file) {
     reader.onerror = () => reject(new Error("Cannot read file"));
     reader.readAsText(file, "utf-8");
   });
+}
+
+function isSupportedVideoFile(file) {
+  const type = (file?.type || "").toLowerCase();
+  if (SUPPORTED_VIDEO_MIME_TYPES.has(type)) return true;
+  const name = (file?.name || "").toLowerCase();
+  return SUPPORTED_VIDEO_EXTENSIONS.some(extension => name.endsWith(extension));
+}
+
+function getSupportedVideoFormatText() {
+  return "MP4、WebM、MOV、M4V、OGG、3GP";
 }
 
 function fileToImage(file) {
@@ -3142,8 +3164,8 @@ class HouChangApp {
     const [file] = event.target.files || [];
     event.target.value = "";
     if (!file) return;
-    if (!/^video\/(mp4|webm)$/.test(file.type)) {
-      this.infoModal("文件格式不支持", "请上传 MP4 或 WebM 格式的视频。");
+    if (!isSupportedVideoFile(file)) {
+      this.infoModal("文件格式不支持", `请上传 ${getSupportedVideoFormatText()} 格式的视频。`);
       return;
     }
     if (file.size > 50 * 1024 * 1024) {
@@ -4101,7 +4123,7 @@ class HouChangApp {
                   <span class="text">上传视频</span>
                 </div>
               `}
-              <input type="file" accept="video/mp4,video/webm" hidden data-file-input="video" data-index="${index}">
+              <input type="file" accept="${VIDEO_ACCEPT_TYPES}" hidden data-file-input="video" data-index="${index}">
             </div>
           </div>
 
@@ -4334,8 +4356,8 @@ class HouChangApp {
   }
 
   async uploadStepVideo(index, file) {
-    if (!/^video\/(mp4|webm)$/.test(file.type)) {
-      alert("请上传 MP4 或 WebM 格式的视频。");
+    if (!isSupportedVideoFile(file)) {
+      alert(`请上传 ${getSupportedVideoFormatText()} 格式的视频。`);
       return;
     }
     if (file.size > 50 * 1024 * 1024) {
