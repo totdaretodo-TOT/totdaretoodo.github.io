@@ -20,6 +20,34 @@ const rewardMessages = {
 const IMAGE_DB_NAME = "houchang-image-db";
 const IMAGE_STORE_NAME = "stepImages";
 const TEACHING_PACKAGE_VERSION = 1;
+const FULL_BACKUP_VERSION = 1;
+const PLACEHOLDER_CONTACT_PHONES = new Set(["138-0000-0001", "138-0000-0002", "138-0000-0003"]);
+const platform = window.HouChangPlatform || {};
+const appStorage = platform.storage || {
+  getString: (key, fallback = "") => {
+    const value = localStorage.getItem(key);
+    return value === null ? fallback : value;
+  },
+  setString: (key, value) => localStorage.setItem(key, String(value)),
+  getJSON: (key, fallback = null) => {
+    const value = localStorage.getItem(key);
+    if (value === null) return fallback;
+    try {
+      return JSON.parse(value);
+    } catch (error) {
+      return fallback;
+    }
+  },
+  setJSON: (key, value) => localStorage.setItem(key, JSON.stringify(value, null, 2)),
+  remove: key => localStorage.removeItem(key),
+  keys: () => Object.keys(localStorage)
+};
+const appClipboard = platform.clipboard || {
+  writeText: async text => navigator.clipboard.writeText(text)
+};
+const imageStore = platform.createImageStore
+  ? platform.createImageStore(IMAGE_DB_NAME, IMAGE_STORE_NAME)
+  : null;
 const CUSTOM_TASK_ICON_MAP = {
   restaurant: "🍽️",
   snack: "🍬",
@@ -89,7 +117,16 @@ function handleShareQrError(image) {
   if (fallback) fallback.classList.remove("hidden");
 }
 
+function isAppStorageKey(key) {
+  return key.startsWith("houchang-") ||
+    key === "privacy-agreement" ||
+    key === "display-mode" ||
+    key === "voice-lang" ||
+    key === "voice-rate";
+}
+
 function openImageDatabase() {
+  if (imageStore) return imageStore.open();
   return new Promise((resolve, reject) => {
     if (!window.indexedDB) {
       reject(new Error("IndexedDB unavailable"));
@@ -108,6 +145,7 @@ function openImageDatabase() {
 }
 
 async function getStoredImage(key) {
+  if (imageStore) return imageStore.get(key);
   const db = await openImageDatabase();
   return new Promise((resolve, reject) => {
     const request = db.transaction(IMAGE_STORE_NAME, "readonly").objectStore(IMAGE_STORE_NAME).get(key);
@@ -117,6 +155,7 @@ async function getStoredImage(key) {
 }
 
 async function setStoredImage(key, value) {
+  if (imageStore) return imageStore.set(key, value);
   const db = await openImageDatabase();
   return new Promise((resolve, reject) => {
     const request = db.transaction(IMAGE_STORE_NAME, "readwrite").objectStore(IMAGE_STORE_NAME).put(value, key);
@@ -126,11 +165,75 @@ async function setStoredImage(key, value) {
 }
 
 async function deleteStoredImage(key) {
+  if (imageStore) return imageStore.delete(key);
   const db = await openImageDatabase();
   return new Promise((resolve, reject) => {
     const request = db.transaction(IMAGE_STORE_NAME, "readwrite").objectStore(IMAGE_STORE_NAME).delete(key);
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error || new Error("Cannot delete image"));
+  });
+}
+
+async function listStoredMedia() {
+  if (imageStore?.list) return imageStore.list();
+  const db = await openImageDatabase();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(IMAGE_STORE_NAME, "readonly").objectStore(IMAGE_STORE_NAME).openCursor();
+    const items = [];
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        resolve(items);
+        return;
+      }
+      items.push({ key: cursor.key, value: cursor.value });
+      cursor.continue();
+    };
+    request.onerror = () => reject(request.error || new Error("Cannot list media"));
+  });
+}
+
+async function clearStoredMedia() {
+  if (imageStore?.clear) return imageStore.clear();
+  const db = await openImageDatabase();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(IMAGE_STORE_NAME, "readwrite").objectStore(IMAGE_STORE_NAME).clear();
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error || new Error("Cannot clear media"));
+  });
+}
+
+async function importStoredMedia(items) {
+  if (imageStore?.importItems) return imageStore.importItems(items);
+  if (!Array.isArray(items) || !items.length) return;
+  const db = await openImageDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(IMAGE_STORE_NAME, "readwrite");
+    const store = transaction.objectStore(IMAGE_STORE_NAME);
+    items.forEach(item => {
+      if (!item || typeof item.key !== "string") return;
+      store.put(item.value, item.key);
+    });
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error || new Error("Cannot import media"));
+  });
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Cannot read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function fileToText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result || "");
+    reader.onerror = () => reject(new Error("Cannot read file"));
+    reader.readAsText(file, "utf-8");
   });
 }
 
@@ -180,6 +283,8 @@ class HouChangApp {
     this.smartHelpTimers = [];
     this.smartHelpStage = 0;
     this.smartHelpStepKey = null;
+    this.updatePromptVisible = false;
+    this.isReloadingForUpdate = false;
 
     this.modalOverlay = document.getElementById("modal-overlay");
     this.modalTitle = document.getElementById("modal-title");
@@ -206,12 +311,13 @@ class HouChangApp {
     this.updateNavState();
     this.updateStreakBadge();
     this.updateResumeCard();
+    this.updateEmergencySetupCard();
     this.promptResumeIfNeeded();
     this.showIncomingHashViewIfNeeded();
   }
 
   async checkPrivacyAgreement() {
-    const agreed = localStorage.getItem("privacy-agreement");
+    const agreed = appStorage.getString("privacy-agreement", "");
     if (agreed) return;
 
     return new Promise((resolve) => {
@@ -230,13 +336,13 @@ class HouChangApp {
       const disagreeBtn = container.querySelector(".btn-disagree");
 
       const handleAgree = () => {
-        localStorage.setItem("privacy-agreement", "true");
+        appStorage.setString("privacy-agreement", "true");
         container.innerHTML = "";
         resolve();
       };
 
       const handleDisagree = () => {
-        container.innerHTML = "<div style='padding:40px;text-align:center;'><p>您需要同意隐私政策才能使用本应用。</p></div>";
+        container.innerHTML = "<div class='privacy-denied'><p>您需要同意隐私政策才能继续使用本应用。</p></div>";
         resolve();
       };
 
@@ -274,28 +380,25 @@ class HouChangApp {
 
   loadProfiles() {
     try {
-      const saved = localStorage.getItem("houchang-profiles");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length) return parsed;
-      }
+      const parsed = appStorage.getJSON("houchang-profiles", null);
+      if (Array.isArray(parsed) && parsed.length) return parsed;
     } catch (error) {
       console.log("Cannot load profiles");
     }
     const defaults = [{ id: "profile-default", name: "默认使用者" }];
-    localStorage.setItem("houchang-profiles", JSON.stringify(defaults));
+    appStorage.setJSON("houchang-profiles", defaults);
     return defaults;
   }
 
   saveProfiles() {
-    localStorage.setItem("houchang-profiles", JSON.stringify(this.profiles));
+    appStorage.setJSON("houchang-profiles", this.profiles);
   }
 
   loadActiveProfileId() {
-    const saved = localStorage.getItem("houchang-active-profile");
+    const saved = appStorage.getString("houchang-active-profile", "");
     if (saved && this.profiles.some(profile => profile.id === saved)) return saved;
     const fallback = this.profiles[0].id;
-    localStorage.setItem("houchang-active-profile", fallback);
+    appStorage.setString("houchang-active-profile", fallback);
     return fallback;
   }
 
@@ -313,13 +416,13 @@ class HouChangApp {
 
   loadScopedPreference(name, legacyKey, defaultValue) {
     const scopedKey = this.getPreferenceKey(name);
-    const scopedValue = localStorage.getItem(scopedKey);
+    const scopedValue = appStorage.getString(scopedKey, null);
     if (scopedValue !== null) return scopedValue;
 
     if (legacyKey) {
-      const legacyValue = localStorage.getItem(legacyKey);
+      const legacyValue = appStorage.getString(legacyKey, null);
       if (legacyValue !== null) {
-        localStorage.setItem(scopedKey, legacyValue);
+        appStorage.setString(scopedKey, legacyValue);
         return legacyValue;
       }
     }
@@ -328,7 +431,7 @@ class HouChangApp {
   }
 
   saveScopedPreference(name, value) {
-    localStorage.setItem(this.getPreferenceKey(name), String(value));
+    appStorage.setString(this.getPreferenceKey(name), value);
   }
 
   reloadProfileScopedData() {
@@ -339,8 +442,8 @@ class HouChangApp {
 
   loadStats() {
     try {
-      const saved = localStorage.getItem(this.getScopedKey("houchang-stats"));
-      if (saved) return { ...this.createEmptyStats(), ...JSON.parse(saved) };
+      const saved = appStorage.getJSON(this.getScopedKey("houchang-stats"), null);
+      if (saved) return { ...this.createEmptyStats(), ...saved };
     } catch (error) {
       console.log("Cannot load stats");
     }
@@ -348,20 +451,19 @@ class HouChangApp {
   }
 
   saveStats() {
-    localStorage.setItem(this.getScopedKey("houchang-stats"), JSON.stringify(this.stats));
+    appStorage.setJSON(this.getScopedKey("houchang-stats"), this.stats);
   }
 
   loadCustomTasks() {
     try {
-      const saved = localStorage.getItem(this.getScopedKey("houchang-custom-tasks"));
-      return saved ? JSON.parse(saved) : [];
+      return appStorage.getJSON(this.getScopedKey("houchang-custom-tasks"), []);
     } catch (error) {
       return [];
     }
   }
 
   saveCustomTasks() {
-    localStorage.setItem(this.getScopedKey("houchang-custom-tasks"), JSON.stringify(this.customTasks));
+    appStorage.setJSON(this.getScopedKey("houchang-custom-tasks"), this.customTasks);
   }
 
   getAllTasks() {
@@ -423,33 +525,45 @@ class HouChangApp {
     });
   }
 
+  isPlaceholderContact(contact) {
+    return PLACEHOLDER_CONTACT_PHONES.has((contact?.phone || "").trim());
+  }
+
+  isValidContactPhone(phone) {
+    const normalized = (phone || "").trim();
+    if (!normalized || PLACEHOLDER_CONTACT_PHONES.has(normalized)) return false;
+    const digitCount = normalized.replace(/\D/g, "").length;
+    return digitCount >= 7 && /^[0-9+()\s-]+$/.test(normalized);
+  }
+
+  getCallableContacts() {
+    return (this.contacts || []).filter(contact => this.isValidContactPhone(contact.phone));
+  }
+
+  updateEmergencySetupCard() {
+    const card = document.getElementById("emergency-setup-card");
+    if (!card) return;
+    card.classList.toggle("hidden", this.getCallableContacts().length > 0);
+  }
+
   loadContacts() {
     try {
       const scopedKey = this.getScopedKey("houchang-contacts");
-      const saved = localStorage.getItem(scopedKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
+      const saved = appStorage.getJSON(scopedKey, null);
+      if (Array.isArray(saved)) return saved;
 
-      const legacy = localStorage.getItem("houchang-contacts");
-      if (legacy) {
-        const parsed = JSON.parse(legacy);
-        if (Array.isArray(parsed)) {
-          localStorage.setItem(scopedKey, JSON.stringify(parsed));
-          return parsed;
-        }
+      const legacy = appStorage.getJSON("houchang-contacts", null);
+      if (Array.isArray(legacy)) {
+        appStorage.setJSON(scopedKey, legacy);
+        return legacy;
       }
     } catch (error) {}
-    return [
-      { id: "c1", name: "值班主管", phone: "138-0000-0001", role: "主管" },
-      { id: "c2", name: "带教老师", phone: "138-0000-0002", role: "带教" },
-      { id: "c3", name: "同事小王", phone: "138-0000-0003", role: "同事" }
-    ];
+    return [];
   }
 
   saveContacts() {
-    localStorage.setItem(this.getScopedKey("houchang-contacts"), JSON.stringify(this.contacts));
+    appStorage.setJSON(this.getScopedKey("houchang-contacts"), this.contacts);
+    this.updateEmergencySetupCard();
   }
 
   showContactList() {
@@ -466,7 +580,7 @@ class HouChangApp {
               </div>
               <div class="contact-phone">${escapeHtml(c.phone)}</div>
             </div>
-            <button class="btn btn-contact-action" data-phone="${escapeHtml(c.phone)}">拨打电话</button>
+            <button class="btn btn-contact-action" data-phone="${escapeHtml(c.phone)}" ${this.isValidContactPhone(c.phone) ? "" : "disabled"}>${this.isValidContactPhone(c.phone) ? "拨打电话" : "需更新号码"}</button>
           </div>
         `).join("") : `
           <div class="contact-empty">
@@ -488,8 +602,10 @@ class HouChangApp {
         document.querySelectorAll(".contact-row .btn-contact-action").forEach(btn => {
           btn.addEventListener("click", () => {
             const phone = btn.dataset.phone;
-            if (phone) {
+            if (this.isValidContactPhone(phone)) {
               window.location.href = `tel:${phone}`;
+            } else {
+              this.infoModal("号码不可用", "请先把这个联系人更新为真实电话号码。");
             }
           });
         });
@@ -501,11 +617,18 @@ class HouChangApp {
     if (navigator.vibrate) {
       navigator.vibrate([200, 100, 200]);
     }
-    if (this.contacts && this.contacts.length > 0) {
-      const firstContact = this.contacts[0];
+    const [firstContact] = this.getCallableContacts();
+    if (firstContact) {
       window.location.href = `tel:${firstContact.phone}`;
     } else {
-      this.infoModal("未设置联系人", "请先在设置中添加紧急联系人。\n\n点击右上角「当前使用者」→「管理联系人」来添加。");
+      this.showModal({
+        title: "请先设置真实联系人",
+        message: "紧急求助需要真实电话号码。请先添加 1 位带教老师、主管或同事。",
+        actions: [
+          { label: "稍后再说", variant: "secondary", onClick: () => {} },
+          { label: "去设置联系人", variant: "primary", onClick: () => this.openContactManager() }
+        ]
+      });
     }
   }
 
@@ -562,8 +685,10 @@ class HouChangApp {
 
             if (action === "call") {
               const contact = this.contacts.find(item => item.id === contactId);
-              if (contact?.phone) {
+              if (this.isValidContactPhone(contact?.phone)) {
                 window.location.href = `tel:${contact.phone}`;
+              } else {
+                this.infoModal("号码不可用", "请先把这个联系人更新为真实电话号码。");
               }
               return;
             }
@@ -603,8 +728,8 @@ class HouChangApp {
       this.infoModal("还没有填写电话", "请先输入联系电话。");
       return;
     }
-    if (!/^[0-9+()\s-]+$/.test(phone)) {
-      this.infoModal("电话号码格式不对", "请只输入数字，或使用 +、-、空格、括号这些常见电话符号。");
+    if (!this.isValidContactPhone(phone)) {
+      this.infoModal("电话号码格式不对", "请输入真实可拨打的电话号码，至少 7 位数字，可使用 +、-、空格、括号。");
       return;
     }
 
@@ -677,8 +802,8 @@ class HouChangApp {
       this.infoModal("电话不能为空", "请输入联系电话。");
       return;
     }
-    if (!/^[0-9+()\s-]+$/.test(phone)) {
-      this.infoModal("电话号码格式不对", "请只输入数字，或使用 +、-、空格、括号这些常见电话符号。");
+    if (!this.isValidContactPhone(phone)) {
+      this.infoModal("电话号码格式不对", "请输入真实可拨打的电话号码，至少 7 位数字，可使用 +、-、空格、括号。");
       return;
     }
 
@@ -711,8 +836,7 @@ class HouChangApp {
 
   loadProgress() {
     try {
-      const saved = localStorage.getItem(this.getScopedKey("houchang-progress"));
-      return saved ? JSON.parse(saved) : null;
+      return appStorage.getJSON(this.getScopedKey("houchang-progress"), null);
     } catch (error) {
       return null;
     }
@@ -720,15 +844,15 @@ class HouChangApp {
 
   saveProgress() {
     if (!this.currentTask) return;
-    localStorage.setItem(this.getScopedKey("houchang-progress"), JSON.stringify({
+    appStorage.setJSON(this.getScopedKey("houchang-progress"), {
       taskId: this.currentTask.id,
       stepIndex: this.currentStepIndex
-    }));
+    });
     this.updateResumeCard();
   }
 
   clearProgress() {
-    localStorage.removeItem(this.getScopedKey("houchang-progress"));
+    appStorage.remove(this.getScopedKey("houchang-progress"));
     this.updateResumeCard();
   }
 
@@ -1211,7 +1335,7 @@ class HouChangApp {
     const grid = document.getElementById("task-grid");
     const filteredTasks = this.filterTasksByCategory(this.currentCategory);
     grid.innerHTML = filteredTasks.map(task => `
-      <div class="task-card ${task.isCustom ? "task-card-custom" : ""}" data-task-id="${escapeHtml(task.id)}">
+      <div class="task-card ${task.isCustom ? "task-card-custom" : ""}" role="button" tabindex="0" data-task-id="${escapeHtml(task.id)}">
         ${task.isCustom ? `<button class="task-manage-btn" data-task-manage="${escapeHtml(task.id)}">管理</button>` : ""}
         <div class="task-icon">${escapeHtml(task.icon)}</div>
         <h3>${escapeHtml(task.title)}</h3>
@@ -1224,11 +1348,54 @@ class HouChangApp {
     `).join("");
   }
 
+  registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (this.isReloadingForUpdate) return;
+      this.isReloadingForUpdate = true;
+      window.location.reload();
+    });
+
+    navigator.serviceWorker.register("./sw.js")
+      .then(registration => {
+        if (registration.waiting && navigator.serviceWorker.controller) {
+          this.showUpdatePrompt(registration.waiting);
+        }
+
+        registration.addEventListener("updatefound", () => {
+          const worker = registration.installing;
+          if (!worker) return;
+          worker.addEventListener("statechange", () => {
+            if (worker.state === "installed" && navigator.serviceWorker.controller) {
+              this.showUpdatePrompt(worker);
+            }
+          });
+        });
+      })
+      .catch(err => console.log("SW注册失败", err));
+  }
+
+  showUpdatePrompt(worker) {
+    if (!worker || this.updatePromptVisible) return;
+    this.updatePromptVisible = true;
+    this.showModal({
+      title: "有新版本可用",
+      message: "新版本已经下载好。刷新后会使用最新功能和缓存。",
+      actions: [
+        { label: "稍后", variant: "secondary", onClick: () => { this.updatePromptVisible = false; } },
+        {
+          label: "立即更新",
+          variant: "primary",
+          onClick: () => worker.postMessage({ type: "SKIP_WAITING" })
+        }
+      ]
+    });
+  }
+
   bindEvents() {
     // 1. 注册离线 Service Worker
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW注册失败', err));
-    }
+    this.registerServiceWorker();
 
     // 2. 修复 Web Audio API 必须由用户交互激活的限制
     document.body.addEventListener('click', () => {
@@ -1249,6 +1416,14 @@ class HouChangApp {
       if (card) this.startTask(card.dataset.taskId);
     });
 
+    document.getElementById("task-grid").addEventListener("keydown", event => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      const card = event.target.closest(".task-card");
+      if (!card) return;
+      event.preventDefault();
+      this.startTask(card.dataset.taskId);
+    });
+
     document.querySelectorAll(".category-tab").forEach(tab => {
       tab.addEventListener("click", () => {
         document.querySelectorAll(".category-tab").forEach(item => item.classList.remove("active"));
@@ -1263,6 +1438,7 @@ class HouChangApp {
     document.getElementById("coach-workspace-btn").addEventListener("click", () => this.verifyAndOpenCoachWorkspace());
     document.getElementById("share-progress-btn").addEventListener("click", () => this.openShareProgress());
     document.getElementById("video-idea-btn").addEventListener("click", () => this.openVideoIdea());
+    document.getElementById("setup-emergency-contact-btn").addEventListener("click", () => this.openContactManager());
     document.getElementById("resume-btn").addEventListener("click", () => {
       const saved = this.loadProgress();
       if (saved) this.resumeTask(saved.taskId, saved.stepIndex);
@@ -1301,6 +1477,7 @@ class HouChangApp {
     document.getElementById("mode-toggle-btn").addEventListener("click", () => this.toggleDisplayMode());
     document.getElementById("voice-settings-btn").addEventListener("click", () => this.openVoiceSettings());
     document.getElementById("package-file-input").addEventListener("change", event => this.handleTeachingPackageFileSelected(event));
+    document.getElementById("backup-file-input").addEventListener("change", event => this.handleFullBackupFileSelected(event));
 
     // 新增功能事件绑定
     document.getElementById("prev-step-btn").addEventListener("click", () => this.goToPrevStep());
@@ -1489,7 +1666,7 @@ class HouChangApp {
 
   switchProfile(profileId) {
     this.activeProfileId = profileId;
-    localStorage.setItem("houchang-active-profile", profileId);
+    appStorage.setString("houchang-active-profile", profileId);
     this.reloadProfileScopedData();
     this.loadDisplayMode();
     this.currentTask = null;
@@ -1498,6 +1675,7 @@ class HouChangApp {
     this.updateProfileChip();
     this.updateStreakBadge();
     this.updateResumeCard();
+    this.updateEmergencySetupCard();
     this.renderTaskGrid();
     this.goHome();
   }
@@ -1560,8 +1738,12 @@ class HouChangApp {
               <strong>📥 导入带教包</strong>
               <span>接收另一台设备发来的任务配置</span>
             </button>
+            <button class="workspace-action-btn" data-workspace-action="backup">
+              <strong>🛡️ 完整备份</strong>
+              <span>备份或恢复全部本地资料和媒体</span>
+            </button>
           </div>
-          <p class="inline-note">“分享进度摘要”是给老师、家长或主管看结果；“带教包”是给另一台设备同步任务和配置。</p>
+          <p class="inline-note">“带教包”用于轻量同步任务配置；“完整备份”用于防丢数据和整机迁移。</p>
         </div>
       `,
       actions: [{ label: "关闭", variant: "secondary", onClick: () => {} }],
@@ -1573,6 +1755,7 @@ class HouChangApp {
             if (action === "contacts") this.openContactManager();
             if (action === "export") this.openTeachingPackageExporter();
             if (action === "import") this.openTeachingPackageImporter();
+            if (action === "backup") this.openFullBackupPanel();
           });
         });
       }
@@ -1779,7 +1962,10 @@ class HouChangApp {
       for (let i = 0; i < task.steps.length; i++) {
         const step = task.steps[i];
         if (step.userImageKey) {
-          try { await deleteStoredImage(`${this.activeProfileId}-${step.userImageKey}`); } catch (e) {}
+          try { await deleteStoredImage(this.getScopedMediaKey(step.userImageKey)); } catch (e) {}
+        }
+        if (step.userVideoKey) {
+          try { await deleteStoredImage(this.getScopedMediaKey(step.userVideoKey)); } catch (e) {}
         }
         const videoKey = `video-${this.activeProfileId}-${taskId}-step-${i}`;
         try { await deleteStoredImage(videoKey); } catch (e) {}
@@ -1937,22 +2123,7 @@ class HouChangApp {
   }
 
   async copyText(text) {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return;
-    }
-
-    const textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.setAttribute("readonly", "true");
-    textarea.style.position = "fixed";
-    textarea.style.opacity = "0";
-    document.body.appendChild(textarea);
-    textarea.focus();
-    textarea.select();
-    const copied = document.execCommand("copy");
-    document.body.removeChild(textarea);
-    if (!copied) throw new Error("copy-failed");
+    await appClipboard.writeText(text);
   }
 
   downloadJson(filename, payload) {
@@ -1963,6 +2134,208 @@ class HouChangApp {
     link.download = filename;
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  async createFullBackupPayload() {
+    const warnings = [];
+    const localStorageData = {};
+    const storageKeys = (appStorage.keys ? appStorage.keys() : Object.keys(localStorage))
+      .filter(isAppStorageKey)
+      .sort();
+
+    storageKeys.forEach(key => {
+      localStorageData[key] = appStorage.getString(key, "");
+    });
+
+    let media = [];
+    try {
+      const storedMedia = await listStoredMedia();
+      for (const item of storedMedia) {
+        if (!item || typeof item.key !== "string") continue;
+        const value = item.value;
+        if (typeof value === "string" && value.startsWith("blob:")) {
+          try {
+            const response = await fetch(value);
+            const blob = await response.blob();
+            const migrated = {
+              kind: "video",
+              mimeType: blob.type || "video/mp4",
+              name: `${item.key}.mp4`,
+              size: blob.size,
+              dataUrl: await fileToDataUrl(blob),
+              savedAt: new Date().toISOString(),
+              migratedFromBlobUrl: true
+            };
+            await setStoredImage(item.key, migrated);
+            media.push({
+              key: item.key,
+              value: migrated
+            });
+          } catch (error) {
+            warnings.push(`视频 ${item.key} 仍是旧版临时地址，刷新后可能已失效。请重新上传后再备份。`);
+          }
+          continue;
+        }
+        if (typeof value === "string") {
+          media.push({ key: item.key, value });
+          continue;
+        }
+        if (value && typeof value === "object" && value.dataUrl) {
+          media.push({ key: item.key, value });
+          continue;
+        }
+        warnings.push(`媒体 ${item.key} 不是可备份格式，已跳过。`);
+      }
+    } catch (error) {
+      warnings.push("当前浏览器暂时无法读取本地图片/视频，备份中不包含媒体。");
+    }
+
+    return {
+      type: "houchang.full-backup",
+      version: FULL_BACKUP_VERSION,
+      exportedAt: new Date().toISOString(),
+      profileCount: this.profiles.length,
+      activeProfileId: this.activeProfileId,
+      localStorage: localStorageData,
+      media,
+      warnings
+    };
+  }
+
+  async downloadFullBackup(options = {}) {
+    try {
+      const payload = await this.createFullBackupPayload();
+      const filename = options.filename || `一步步-完整备份-${new Date().toISOString().slice(0, 10)}.json`;
+      this.downloadJson(filename, payload);
+      return payload;
+    } catch (error) {
+      this.infoModal("备份失败", "当前浏览器没有成功打包本地资料，请稍后再试。");
+      throw error;
+    }
+  }
+
+  isValidFullBackup(payload) {
+    return Boolean(
+      payload &&
+      payload.type === "houchang.full-backup" &&
+      payload.localStorage &&
+      typeof payload.localStorage === "object" &&
+      Array.isArray(payload.media)
+    );
+  }
+
+  openFullBackupPanel() {
+    this.showModal({
+      title: "完整备份与恢复",
+      html: `
+        <div class="share-card">
+          <div class="share-summary-card">
+            <div class="profile-row-title">防丢数据备份</div>
+            <div class="profile-row-meta">导出所有使用者、联系人、自定义任务、进度、统计、偏好，以及已保存的参考图片和视频。</div>
+          </div>
+          <div class="share-summary-card">
+            <div class="profile-row-title">恢复会全量替换</div>
+            <div class="profile-row-meta">导入完整备份前，系统会先自动下载一份当前数据备份，再用导入文件替换本机资料。</div>
+          </div>
+          <p class="inline-note">如果旧视频是临时 blob 地址，备份会提示重新上传；新上传的视频会正常持久化并进入完整备份。</p>
+        </div>
+      `,
+      actions: [
+        { label: "返回工作台", variant: "secondary", onClick: () => this.openCoachWorkspace() },
+        {
+          label: "导出完整备份",
+          variant: "secondary",
+          keepOpen: true,
+          onClick: async () => {
+            const payload = await this.downloadFullBackup();
+            this.infoModal(
+              "完整备份已下载",
+              payload.warnings.length
+                ? `备份已完成，但有 ${payload.warnings.length} 条提醒：\n${payload.warnings.join("\n")}`
+                : "备份文件已经下载，请把它保存在安全的位置。"
+            );
+          }
+        },
+        {
+          label: "选择备份恢复",
+          variant: "primary",
+          keepOpen: true,
+          onClick: () => document.getElementById("backup-file-input").click()
+        }
+      ]
+    });
+  }
+
+  async handleFullBackupFileSelected(event) {
+    const input = event.target;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+
+    let payload;
+    try {
+      payload = JSON.parse(await fileToText(file));
+    } catch (error) {
+      this.infoModal("备份文件无法读取", "请选择完整备份导出的 JSON 文件。");
+      return;
+    }
+
+    if (!this.isValidFullBackup(payload)) {
+      this.infoModal("备份格式不正确", "这个文件不是“一步步”的完整备份，无法恢复。");
+      return;
+    }
+
+    const storageCount = Object.keys(payload.localStorage || {}).length;
+    const mediaCount = payload.media.length;
+    this.showModal({
+      title: "确认恢复完整备份",
+      html: `
+        <div class="share-card">
+          <div class="share-summary-card">
+            <div class="profile-row-title">即将替换当前本机资料</div>
+            <div class="profile-row-meta">备份时间：${escapeHtml(payload.exportedAt || "未知")} · 本地数据 ${storageCount} 项 · 媒体 ${mediaCount} 项</div>
+          </div>
+          <div class="share-summary-card">
+            <div class="profile-row-title">安全保护</div>
+            <div class="profile-row-meta">恢复前会自动下载一份当前数据备份。如果恢复后发现不对，可以用刚下载的文件再恢复回来。</div>
+          </div>
+        </div>
+      `,
+      actions: [
+        { label: "取消", variant: "secondary", onClick: () => this.openFullBackupPanel() },
+        { label: "确认恢复", variant: "primary", keepOpen: true, onClick: () => this.restoreFullBackup(payload) }
+      ]
+    });
+  }
+
+  async restoreFullBackup(payload) {
+    try {
+      await this.downloadFullBackup({ filename: `一步步-恢复前备份-${new Date().toISOString().slice(0, 10)}.json` });
+    } catch (error) {
+      this.infoModal("恢复已取消", "恢复前没有成功生成当前数据备份，因此没有替换任何资料。");
+      return;
+    }
+
+    try {
+      (appStorage.keys ? appStorage.keys() : Object.keys(localStorage))
+        .filter(isAppStorageKey)
+        .forEach(key => appStorage.remove(key));
+
+      Object.entries(payload.localStorage || {}).forEach(([key, value]) => {
+        if (isAppStorageKey(key)) appStorage.setString(key, value);
+      });
+
+      await clearStoredMedia();
+      await importStoredMedia(payload.media || []);
+
+      this.showModal({
+        title: "恢复完成",
+        message: "完整备份已经恢复。页面需要刷新后读取新的本地资料。",
+        actions: [{ label: "刷新页面", variant: "primary", onClick: () => window.location.reload() }]
+      });
+    } catch (error) {
+      this.infoModal("恢复失败", "当前浏览器没有成功写入备份资料。请不要关闭刚刚自动下载的恢复前备份。");
+    }
   }
 
   decodeHashPayload(prefix) {
@@ -2459,7 +2832,7 @@ class HouChangApp {
     if (!file) return;
 
     try {
-      const text = await file.text();
+      const text = await fileToText(file);
       const payload = this.parseTeachingPackageSource(text);
       this.closeModal();
       const summary = this.applyTeachingPackage(payload);
@@ -2597,7 +2970,13 @@ class HouChangApp {
     const step = this.getCurrentStep();
     if (!step || !this.currentTask) return null;
     const localKey = step.userImageKey || `${this.currentTask.id}-step-${this.currentStepIndex}`;
-    return `${this.activeProfileId}-${localKey}`;
+    return this.getScopedMediaKey(localKey);
+  }
+
+  getScopedMediaKey(localKey) {
+    if (!localKey) return null;
+    const prefix = `${this.activeProfileId}-`;
+    return localKey.startsWith(prefix) ? localKey : `${prefix}${localKey}`;
   }
 
   async loadCurrentStepImage() {
@@ -2618,6 +2997,11 @@ class HouChangApp {
     const progress = ((this.currentStepIndex + 1) / totalSteps) * 100;
     document.getElementById("progress-fill").style.width = `${progress}%`;
     document.getElementById("progress-text").textContent = `第 ${this.currentStepIndex + 1} 步，共 ${totalSteps} 步`;
+    const prevStepButton = document.getElementById("prev-step-btn");
+    if (prevStepButton) {
+      prevStepButton.disabled = this.currentStepIndex <= 0;
+      prevStepButton.setAttribute("aria-disabled", String(this.currentStepIndex <= 0));
+    }
     document.getElementById("step-instruction").textContent = step.instruction;
     document.getElementById("step-detail").textContent = step.detail;
     document.getElementById("step-why").textContent = `为什么要做：${step.whyItMatters}`;
@@ -2705,14 +3089,23 @@ class HouChangApp {
   getCurrentVideoKey() {
     const step = this.getCurrentStep();
     if (!step || !this.currentTask) return null;
-    return `video-${this.activeProfileId}-${this.currentTask.id}-step-${this.currentStepIndex}`;
+    return this.getScopedMediaKey(step.userVideoKey || `video-${this.currentTask.id}-step-${this.currentStepIndex}`);
   }
 
   async loadCurrentStepVideo() {
     const key = this.getCurrentVideoKey();
     if (!key || !this.imageStoreAvailable) return null;
     try {
-      return await getStoredImage(key);
+      let stored = await getStoredImage(key);
+      if (!stored && this.currentTask) {
+        const legacyKey = `video-${this.activeProfileId}-${this.currentTask.id}-step-${this.currentStepIndex}`;
+        if (legacyKey !== key) stored = await getStoredImage(legacyKey);
+      }
+      const step = this.getCurrentStep();
+      if (!stored && step?.videoUrl && !step.videoUrl.startsWith("blob:")) return step.videoUrl;
+      if (!stored) return null;
+      if (typeof stored === "string") return stored.startsWith("blob:") ? null : stored;
+      return stored.dataUrl || null;
     } catch (error) {
       return null;
     }
@@ -2731,7 +3124,7 @@ class HouChangApp {
       return;
     }
     try {
-      const videoUrl = URL.createObjectURL(file);
+      const videoUrl = await fileToDataUrl(file);
       const video = document.getElementById("step-video");
       if (video) {
         video.src = videoUrl;
@@ -2739,7 +3132,14 @@ class HouChangApp {
       }
       const removeBtn = document.getElementById("remove-video-btn");
       if (removeBtn) removeBtn.style.display = "inline-block";
-      await setStoredImage(this.getCurrentVideoKey(), videoUrl);
+      await setStoredImage(this.getCurrentVideoKey(), {
+        kind: "video",
+        mimeType: file.type,
+        name: file.name,
+        size: file.size,
+        dataUrl: videoUrl,
+        savedAt: new Date().toISOString()
+      });
     } catch (error) {
       this.infoModal("视频保存失败", "这段视频没有保存成功，你可以换一段再试。");
     }
@@ -2755,6 +3155,8 @@ class HouChangApp {
       if (removeBtn) removeBtn.style.display = "none";
       if (this.imageStoreAvailable) {
         await deleteStoredImage(this.getCurrentVideoKey());
+        const legacyKey = `video-${this.activeProfileId}-${this.currentTask.id}-step-${this.currentStepIndex}`;
+        try { await deleteStoredImage(legacyKey); } catch (error) {}
       }
     } catch (error) {
       this.infoModal("删除失败", "这段视频暂时没有删除成功。");
@@ -3448,7 +3850,7 @@ class HouChangApp {
 
   copyCommScript() {
     const content = document.getElementById("comm-script-content").textContent;
-    navigator.clipboard.writeText(content).then(() => {
+    this.copyText(content).then(() => {
       this.infoModal("已复制", "话术已复制到剪贴板，可以直接粘贴使用。");
     }).catch(() => {
       this.infoModal("复制失败", "请手动选择文字复制。");
@@ -3660,18 +4062,19 @@ class HouChangApp {
               <input type="file" accept="image/*" hidden data-file-input="image" data-index="${index}">
             </div>
 
-            <div class="media-upload-area ${step.videoUrl ? 'has-media' : ''}"
+            <div class="media-upload-area ${step.userVideoKey || step.videoUrl ? 'has-media' : ''}"
                  data-type="video" data-index="${index}">
-              ${step.videoUrl ? `
-                <video src="${escapeHtml(step.videoUrl)}" muted data-preview="video-${index}"></video>
+              ${step.userVideoKey || step.videoUrl ? `
+                <video src="${escapeHtml(step.userVideoKey ? "" : step.videoUrl)}" muted data-preview="video-${index}"></video>
                 <button class="media-remove-btn" data-remove="video" data-index="${index}">✕</button>
                 <div class="media-change-hint">点击更换视频</div>
               ` : `
                 <div class="media-placeholder">
                   <span class="icon">🎬</span>
-                  <span class="text">添加视频链接</span>
+                  <span class="text">上传视频</span>
                 </div>
               `}
+              <input type="file" accept="video/mp4,video/webm" hidden data-file-input="video" data-index="${index}">
             </div>
           </div>
 
@@ -3714,6 +4117,7 @@ class HouChangApp {
 
     this.initWysiwygEvents();
     this.loadStepImages();
+    this.loadStepVideos();
   }
 
   initWysiwygEvents() {
@@ -3770,6 +4174,7 @@ class HouChangApp {
         if (e.target.files[0]) {
           this.uploadStepImage(index, e.target.files[0]);
         }
+        e.target.value = "";
       });
     });
 
@@ -3784,27 +4189,21 @@ class HouChangApp {
       });
     });
 
-    // 视频链接输入
+    // 视频上传
     list.querySelectorAll('.media-upload-area[data-type="video"]').forEach(area => {
-      if (!area.querySelector('video')) {
-        area.addEventListener("click", () => {
-          const url = prompt("请输入视频URL：");
-          if (url && url.trim()) {
-            const index = parseInt(area.dataset.index);
-            this.updateStepField(index, "videoUrl", url.trim());
-            this.renderStepsList();
-          }
-        });
-      } else {
-        area.addEventListener("click", () => {
-          const index = parseInt(area.dataset.index);
-          const newUrl = prompt("修改视频URL：", this.editorSteps[index].videoUrl);
-          if (newUrl !== null) {
-            this.updateStepField(index, "videoUrl", newUrl.trim() || "");
-            this.renderStepsList();
-          }
-        });
-      }
+      area.addEventListener("click", (e) => {
+        if (e.target.closest(".media-remove-btn")) return;
+        const fileInput = area.querySelector('[data-file-input]');
+        fileInput.click();
+      });
+      const fileInput = area.querySelector('[data-file-input]');
+      fileInput.addEventListener("change", (e) => {
+        const index = parseInt(fileInput.dataset.index);
+        if (e.target.files[0]) {
+          this.uploadStepVideo(index, e.target.files[0]);
+        }
+        e.target.value = "";
+      });
     });
 
     // 拖拽排序
@@ -3843,6 +4242,50 @@ class HouChangApp {
     }
   }
 
+  async storeImageToIndexedDB(key, file) {
+    const compressed = await compressImage(file);
+    await setStoredImage(key, compressed);
+  }
+
+  async getImageFromIndexedDB(key) {
+    let value = await getStoredImage(key);
+    if (!value) value = await getStoredImage(this.getScopedMediaKey(key));
+    return typeof value === "string" ? value : value?.dataUrl || "";
+  }
+
+  async storeVideoToIndexedDB(key, file) {
+    const dataUrl = await fileToDataUrl(file);
+    await setStoredImage(key, {
+      kind: "video",
+      mimeType: file.type,
+      name: file.name,
+      size: file.size,
+      dataUrl,
+      savedAt: new Date().toISOString()
+    });
+    return dataUrl;
+  }
+
+  async getVideoFromIndexedDB(key) {
+    let value = await getStoredImage(key);
+    if (!value) value = await getStoredImage(this.getScopedMediaKey(key));
+    if (typeof value === "string") return value.startsWith("blob:") ? "" : value;
+    return value?.dataUrl || "";
+  }
+
+  async moveStoredMediaToScopedKey(sourceKey, targetLocalKey) {
+    if (!sourceKey || !targetLocalKey) return false;
+    const targetKey = this.getScopedMediaKey(targetLocalKey);
+    let value = await getStoredImage(sourceKey);
+    if (!value) value = await getStoredImage(this.getScopedMediaKey(sourceKey));
+    if (!value) return false;
+    await setStoredImage(targetKey, value);
+    if (sourceKey !== targetKey && sourceKey.startsWith("editor-")) {
+      try { await deleteStoredImage(sourceKey); } catch (error) {}
+    }
+    return true;
+  }
+
   async uploadStepImage(index, file) {
     try {
       const key = `editor-temp-${Date.now()}`;
@@ -3863,12 +4306,40 @@ class HouChangApp {
     }
   }
 
+  async uploadStepVideo(index, file) {
+    if (!/^video\/(mp4|webm)$/.test(file.type)) {
+      alert("请上传 MP4 或 WebM 格式的视频。");
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      alert("视频文件太大，请上传小于 50MB 的视频。");
+      return;
+    }
+    try {
+      const key = `editor-video-temp-${Date.now()}`;
+      const url = await this.storeVideoToIndexedDB(key, file);
+      this.editorSteps[index].userVideoKey = key;
+      this.editorSteps[index].videoUrl = "";
+
+      const video = document.querySelector(`[data-preview="video-${index}"]`);
+      if (video) video.src = url;
+
+      const area = document.querySelector(`.media-upload-area[data-type="video"][data-index="${index}"]`);
+      if (area) area.classList.add("has-media");
+
+      this.renderStepsList();
+    } catch (error) {
+      alert("视频上传失败：" + error.message);
+    }
+  }
+
   removeStepImage(index) {
     this.editorSteps[index].userImageKey = "";
     this.renderStepsList();
   }
 
   removeStepVideo(index) {
+    this.editorSteps[index].userVideoKey = "";
     this.editorSteps[index].videoUrl = "";
     this.renderStepsList();
   }
@@ -3881,6 +4352,19 @@ class HouChangApp {
           const url = await this.getImageFromIndexedDB(step.userImageKey);
           const img = document.querySelector(`[data-preview="image-${i}"]`);
           if (img) img.src = url;
+        } catch (error) {}
+      }
+    }
+  }
+
+  async loadStepVideos() {
+    for (let i = 0; i < this.editorSteps.length; i++) {
+      const step = this.editorSteps[i];
+      if (step.userVideoKey) {
+        try {
+          const url = await this.getVideoFromIndexedDB(step.userVideoKey);
+          const video = document.querySelector(`[data-preview="video-${i}"]`);
+          if (video) video.src = url;
         } catch (error) {}
       }
     }
@@ -3954,6 +4438,7 @@ class HouChangApp {
       whyItMatters: "",
       image: "icon-check",
       userImageKey: "",
+      userVideoKey: "",
       videoUrl: "",
       safetyLevel: "low",
       safetyWarning: "",
@@ -3987,7 +4472,7 @@ class HouChangApp {
     this.updateStepCount();
   }
 
-  saveTaskFromEditor() {
+  async saveTaskFromEditor() {
     const title = document.getElementById("editor-task-name").value.trim();
     const category = document.getElementById("editor-task-category").value;
     const description = document.getElementById("editor-task-desc").value.trim() || "这是带教人员为当前使用者定制的任务。";
@@ -4014,10 +4499,34 @@ class HouChangApp {
     const existingTask = this.editorCurrentTaskId ? this.customTasks.find(t => t.id === this.editorCurrentTaskId) : null;
     const customTaskId = existingTask?.id || this.generateLocalId("custom");
 
-    const stepsWithKeys = this.editorSteps.map((step, index) => ({
-      ...step,
-      userImageKey: step.userImageKey || `${customTaskId}-step-${index}`
-    }));
+    let stepsWithKeys;
+    try {
+      stepsWithKeys = await Promise.all(this.editorSteps.map(async (step, index) => {
+        const normalized = { ...step };
+
+        if (step.userImageKey) {
+          const imageKey = `${customTaskId}-step-${index}`;
+          const saved = await this.moveStoredMediaToScopedKey(step.userImageKey, imageKey);
+          normalized.userImageKey = saved ? imageKey : "";
+        } else {
+          normalized.userImageKey = "";
+        }
+
+        if (step.userVideoKey) {
+          const videoKey = `video-${customTaskId}-step-${index}`;
+          const saved = await this.moveStoredMediaToScopedKey(step.userVideoKey, videoKey);
+          normalized.userVideoKey = saved ? videoKey : "";
+          if (saved) normalized.videoUrl = "";
+        } else {
+          normalized.userVideoKey = "";
+        }
+
+        return normalized;
+      }));
+    } catch (error) {
+      alert("图片或视频保存失败，请稍后再试。");
+      return;
+    }
 
     const record = this.buildCustomTaskRecord({
       id: customTaskId,

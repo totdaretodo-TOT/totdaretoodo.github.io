@@ -420,8 +420,8 @@
         <span class="streak-count" id="streak-count">0</span>
       </div>
       <div class="mode-toggle">
-          <button class="mode-btn" id="mode-toggle-btn" title="切换显示模式">🌓</button>
-          <button class="mode-btn" id="voice-settings-btn" title="语音设置">🔊</button>
+          <button class="mode-btn" id="mode-toggle-btn" title="切换显示模式" aria-label="切换显示模式">🌓</button>
+          <button class="mode-btn" id="voice-settings-btn" title="语音设置" aria-label="语音设置">🔊</button>
         </div>
     </header>
 
@@ -430,6 +430,14 @@
         <div class="welcome-card">
           <p>你好！这里是后场工作帮手。</p>
           <p>选一个任务，跟着提示一步一步做，卡住了也可以马上求助。</p>
+        </div>
+
+        <div class="emergency-setup-card hidden" id="emergency-setup-card">
+          <div>
+            <p class="emergency-setup-title">还没有真实紧急联系人</p>
+            <p class="emergency-setup-text">添加 1 位带教老师、主管或同事后，紧急求助才能直接拨号。</p>
+          </div>
+          <button class="btn btn-primary" id="setup-emergency-contact-btn">马上设置</button>
         </div>
 
         <div class="resume-card" id="resume-card" style="display: none;">
@@ -583,7 +591,7 @@
           <p class="help-label">需要帮助？</p>
           <div class="recovery-buttons">
             <button class="btn btn-recovery" id="prev-step-btn">← 上一步</button>
-            <button class="btn btn-recovery btn-restart" id="restart-task-btn">� 从头开始</button>
+            <button class="btn btn-recovery btn-restart" id="restart-task-btn">↻ 从头开始</button>
             <button class="btn btn-recovery btn-problem" id="problem-btn">❓ 遇到问题</button>
             <button class="btn btn-calm" id="calm-open-btn">🧘 冷静一下</button>
           </div>
@@ -783,12 +791,12 @@
       </section>
     </main>
 
-    <nav class="bottom-nav">
-      <button class="nav-btn" id="nav-home">
+    <nav class="bottom-nav" aria-label="底部导航">
+      <button class="nav-btn" id="nav-home" aria-label="返回首页">
         <span class="nav-icon">🏠</span>
         <span class="nav-text">首页</span>
       </button>
-      <button class="nav-btn" id="nav-stats">
+      <button class="nav-btn" id="nav-stats" aria-label="查看记录">
         <span class="nav-icon">📊</span>
         <span class="nav-text">记录</span>
       </button>
@@ -796,13 +804,14 @@
   </div>
 
   <input id="package-file-input" type="file" accept=".json,application/json" hidden>
+  <input id="backup-file-input" type="file" accept=".json,application/json" hidden>
 
   <!-- 可视化任务编辑器 - 操作者视角模式 -->
-  <div class="task-editor-overlay hidden" id="task-editor-overlay">
+  <div class="task-editor-overlay hidden" id="task-editor-overlay" role="dialog" aria-modal="true" aria-labelledby="task-editor-title">
     <div class="task-editor-card">
       <div class="task-editor-header">
         <h2 id="task-editor-title">📝 编辑自定义任务</h2>
-        <button class="task-editor-close-btn" id="task-editor-close-btn">✕</button>
+        <button class="task-editor-close-btn" id="task-editor-close-btn" aria-label="关闭任务编辑器">✕</button>
       </div>
 
       <div class="task-editor-body">
@@ -848,9 +857,9 @@
   </div>
 
   <!-- 分类管理弹窗 -->
-  <div class="category-manager-overlay hidden" id="category-manager-overlay">
+  <div class="category-manager-overlay hidden" id="category-manager-overlay" role="dialog" aria-modal="true" aria-labelledby="category-manager-title">
     <div class="category-manager-card">
-      <h3>管理自定义分类</h3>
+      <h3 id="category-manager-title">管理自定义分类</h3>
       <p class="category-note">除了系统自带的4个分类，你可以添加自己的分类。</p>
 
       <div class="category-list" id="custom-category-list">
@@ -871,9 +880,9 @@
   </div>
 
   <!-- 图标选择器弹窗 -->
-  <div class="icon-picker-overlay hidden" id="icon-picker-overlay">
+  <div class="icon-picker-overlay hidden" id="icon-picker-overlay" role="dialog" aria-modal="true" aria-labelledby="icon-picker-title">
     <div class="icon-picker-card">
-      <h3>选择图标</h3>
+      <h3 id="icon-picker-title">选择图标</h3>
       <div class="icon-grid" id="icon-grid">
         <!-- 动态生成图标 -->
       </div>
@@ -881,7 +890,7 @@
     </div>
   </div>
 
-  <div class="modal-overlay hidden" id="modal-overlay">
+  <div class="modal-overlay hidden" id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-card">
         <p class="modal-title" id="modal-title">提示</p>
         <div class="modal-message" id="modal-message"></div>
@@ -889,6 +898,7 @@
       </div>
     </div>
 
+  <script src="scripts/platform.js"></script>
   <script src="tasks.js"></script>
   <script src="app.js"></script>
 </body>

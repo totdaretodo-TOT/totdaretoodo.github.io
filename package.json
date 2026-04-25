@@ -2,21 +2,10 @@
   "name": "yibubu-houchang",
   "version": "1.0.0",
   "private": true,
-  "description": "后场一步步 Android packaging project",
+  "description": "后场一步步 Web/PWA 应用",
   "scripts": {
-    "prepare:web": "powershell -NoProfile -ExecutionPolicy Bypass -File ./tools/prepare-web.ps1",
-    "android:local-properties": "powershell -NoProfile -ExecutionPolicy Bypass -File ./tools/create-local-properties.ps1",
-    "cap:sync": "powershell -NoProfile -Command \"npm run prepare:web; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npx cap sync android\"",
-    "cap:open": "powershell -NoProfile -Command \"npx cap open android\"",
-    "android:apk": "powershell -NoProfile -Command \"npm run prepare:web; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npx cap sync android; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; Set-Location android; .\\gradlew.bat assembleDebug\""
-  },
-  "dependencies": {
-    "@capacitor/android": "^7.1.0",
-    "@capacitor/core": "^7.1.0",
-    "@capacitor/status-bar": "^7.0.1"
-  },
-  "devDependencies": {
-    "@capacitor/cli": "^7.1.0",
-    "typescript": "^6.0.3"
+    "start": "python -m http.server 4173",
+    "check": "node --check scripts/platform.js && node --check tasks.js && node --check app.js",
+    "test": "npm run check"
   }
 }
